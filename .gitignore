@@ -1,0 +1,5 @@
+*.suo
+*.userprefs
+
+MaxFormat/bin
+MaxFormat/obj
