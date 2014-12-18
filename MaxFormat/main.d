@@ -24,7 +24,7 @@ void main(string[] args)
 		"regex-transforms", &enableRegexTransforms,
 		"out", &outputFile
 	);
-	fileToProcess = args[0];
+	fileToProcess = args[1];
 
 	if (!outputFile)
 		outputFile = fileToProcess;
@@ -37,6 +37,7 @@ void main(string[] args)
 			tuple(regex(`((?:is|has)Property|(?:get|set)UserProp)\s+([a-zA-Z0-9_.]+?)\s+"([a-zA-Z0-9_]+?)"`, "g"), `$1 $2 #$3`),
 			tuple(regex(`((?:is|has)Property|(?:get|set)UserProp)\s+([a-zA-Z0-9_.]+?)\s+"([a-zA-Z0-9_ -]+?)"`, "g"), `$1 $2 #'$3'`),
 			tuple(regex(`\)\s*else\s*\(\s*\)`, "g"), `)`),
+			tuple(regex(`^(\s*)if(?:\s+|(\())(.+?)do\s*\(\s*$`, "gm"), `$1if $2$3then (`),
 		];
 
 		foreach (tup; regexTransforms)
