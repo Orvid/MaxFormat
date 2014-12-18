@@ -12,11 +12,22 @@ __gshared bool enableConsecutiveSpaceFilter = false;
 __gshared bool enableIdentifierCasing = true;
 __gshared bool enableRegexTransforms = true;
 
-__gshared string fileToProcess = `F:\Autodesk\3ds Max Design 2014\scripts\WallWorm.com\common\mse\wallwormVMF.ms`;
-__gshared string outputFile = `F:\Autodesk\3ds Max Design 2014\scripts\WallWorm.com\common\mse\wallwormVMF.ms`;
+__gshared string fileToProcess;
+__gshared string outputFile;
 
 void main(string[] args)
 {
+	getopt(
+		args,
+		"space-filter", &enableConsecutiveSpaceFilter,
+		"identifier-casing", &enableIdentifierCasing,
+		"regex-transforms", &enableRegexTransforms,
+		"out", &outputFile
+	);
+	fileToProcess = args[0];
+
+	if (!outputFile)
+		outputFile = fileToProcess;
 
 	auto txt = readText(fileToProcess);
 
