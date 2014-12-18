@@ -2,12 +2,148 @@
 
 import std.algorithm;
 import std.file;
+import std.getopt;
+import std.regex;
 import std.stdio;
 import std.string;
+import std.typecons;
+
+__gshared bool enableConsecutiveSpaceFilter = false;
+__gshared bool enableIdentifierCasing = true;
+__gshared bool enableRegexTransforms = true;
+
+__gshared string fileToProcess = `F:\Autodesk\3ds Max Design 2014\scripts\WallWorm.com\common\mse\wallwormVMF.ms`;
+__gshared string outputFile = `F:\Autodesk\3ds Max Design 2014\scripts\WallWorm.com\common\mse\wallwormVMF.ms`;
 
 void main(string[] args)
 {
-	auto fmt = Formatter(readText(`F:\Autodesk\3ds Max Design 2014\scripts\WallWorm.com\common\mse\wallwormVMF.ms`), `F:\Autodesk\3ds Max Design 2014\scripts\tmp.formatted.ms`);
+
+	auto txt = readText(fileToProcess);
+
+	if (enableRegexTransforms)
+	{
+		__gshared regexTransforms = [
+			tuple(regex(`((?:is|has)Property|(?:get|set)UserProp)\s+([a-zA-Z0-9_.]+?)\s+"([a-zA-Z0-9_]+?)"`, "g"), `$1 $2 #$3`),
+			tuple(regex(`((?:is|has)Property|(?:get|set)UserProp)\s+([a-zA-Z0-9_.]+?)\s+"([a-zA-Z0-9_ -]+?)"`, "g"), `$1 $2 #'$3'`),
+			tuple(regex(`\)\s*else\s*\(\s*\)`, "g"), `)`),
+		];
+
+		foreach (tup; regexTransforms)
+			txt = txt.replace(tup[0], tup[1]);
+	}
+
+	auto fmt = Formatter(txt, outputFile);
+
+	string[string] explicitIdentifierMap = [
+		"and": "AND",
+		"as": "as",
+		"case": "case",
+		"catch": "catch",
+		"collect": "collect",
+		"coordsys": "coordsys",
+		"default": "default",
+		"do": "do",
+		"dotnetclass": "dotNetClass",
+		"dotnetobject": "dotNetObject",
+		"else": "else",
+		"false": "false",
+		"filein": "fileIn",
+		"for": "for",
+		"function": "function",
+		"global": "global",
+		"if": "if",
+		"in": "in",
+		"local": "local",
+		"not": "NOT",
+		"of": "of",
+		"off": "off",
+		"on": "on",
+		"or": "OR",
+		"return": "return",
+		"struct": "struct",
+		"then": "then",
+		"true": "true",
+		"try": "try",
+		"undefined": "undefined",
+		"where": "WHERE",
+		"while": "while",
+		"with": "with",
+
+		// Types
+		"angleaxis": "AngleAxis",
+		"array": "Array",
+		"bigmatrix": "BigMatrix",
+		"bigmatrixrowarray": "BigMatrixRowArray",
+		"bitarray": "BitArray",
+		"box2": "Box2",
+		"camera": "Camera",
+		"color": "Color",
+		"double": "Double",
+		"editable_mesh": "Editable_Mesh",
+		"editable_poly": "Editable_Poly",
+		"eulerangles": "EulerAngles",
+		"float": "Float",
+		"geometryclass": "GeometryClass",
+		"helper": "Helper",
+		"integer": "Integer",
+		"integer64": "Integer64",
+		"integerptr": "IntegerPtr",
+		"light": "Light",
+		"matrix3": "Matrix3",
+		"multimaterial": "MultiMaterial",
+		"plane": "Plane",
+		"point2": "Point2",
+		"point3": "Point3",
+		"point4": "Point4",
+		"quat": "Quat",
+		"ray": "Ray",
+		"shape": "Shape",
+		"string": "String",
+		"stringstream": "StringStream",
+		"xrefmaterial": "XRefMaterial",
+
+		// Modifiers
+		"turn_to_poly": "Turn_To_Poly",
+
+		// Functions
+		"addmodifier": "addModifier",
+		"animateall": "animateAll",
+		"classof": "classOf",
+		"convertto": "convertTo",
+		"disablesceneredraw": "disableSceneRedraw",
+		"enablesceneredraw": "enableSceneRedraw",
+		"filein": "fileIn",
+		"finditem": "findItem",
+		"getdef": "getDef",
+		"getdefsource": "getDefSource",
+		"getfacenormal": "getFaceNormal",
+		"getfaceverts": "getFaceVerts",
+		"getsafefacecenter": "getSafeFaceCenter",
+		"getvert": "getVert",
+		"getuserprop": "getUserProp",
+		"iskindof": "isKindOf",
+		"isproperty": "isProperty",
+		"isvalidnode": "isValidNode",
+		"messagebox": "messageBox",
+		"redrawviews": "redrawViews",
+		"setcurrentobject": "setCurrentObject",
+		"superclassof": "superClassOf",
+		"uniquename": "uniqueName",
+
+		// Function Containers
+		"custattributes": "custAttributes",
+
+		// Special Rules
+		"fn": "function",
+		"polyop": "polyop",
+	];
+
+	foreach (k, v; explicitIdentifierMap)
+	{
+		// fn is a very special case.
+		if (k != v.toLower() && k != "fn")
+			throw new Exception("You misspelled '" ~ k ~ "' as '" ~ v ~ "' in the explicit identifier map!");
+	}
 
 	bool lastWasWhitespace = false;
 	while (!fmt.EOF)
@@ -16,11 +152,54 @@ void main(string[] args)
 
 		switch(c)
 		{
+			case '_':
+			case 'a': .. case 'z':
+			case 'A': .. case 'Z':
+			case '0': .. case '9':
+			{
+				if (enableIdentifierCasing)
+				{
+					auto ident = c ~ fmt.nextIdentNum();
+					if (auto a = (ident.toLower() in explicitIdentifierMap))
+						fmt.put(*a);
+					else
+						fmt.put(ident);
+					break;
+				}
+				else
+					goto default;
+			}
+			
+			case '#':
+				fmt.put(c);
+				fmt.put(fmt.nextIdentNum());
+				break;
+
 			case '\t':
 			case ' ':
+				if (!enableConsecutiveSpaceFilter)
+					fmt.put(c);
+				else if (!lastWasWhitespace)
+					fmt.put(' ');
 				lastWasWhitespace = true;
-				fmt.put(c);
 				continue;
+				
+			case '\'':
+				fmt.put(c);
+				while (!fmt.EOF)
+				{
+					c = fmt.get();
+					fmt.put(c);
+					if (c == '\\')
+					{
+						fmt.put(fmt.get());
+					}
+					else if (c == '\'')
+					{
+						break;
+					}
+				}
+				break;
 
 			case '"':
 				fmt.put(c);
@@ -169,6 +348,29 @@ struct Formatter
 
 	@property bool EOF() { return buf.length == 0; }
 
+	string nextIdentNum()
+	{
+		int i = 0;
+		while (i < buf.length)
+		{
+			switch (buf[i])
+			{
+				case '_':
+				case 'a': .. case 'z':
+				case 'A': .. case 'Z':
+				case '0': .. case '9':
+					i++;
+					break;
+				default:
+					goto Return;
+			}
+		}
+	Return:
+		auto ret = buf[0..i];
+		buf = buf[i..$];
+		return ret;
+	}
+
 	string restOfLine()
 	{
 		auto i = buf.countUntil("\n");
@@ -230,7 +432,7 @@ struct Formatter
 
 	void put(char c)
 	{
-		if (needsIndent && c != '\n')
+		if (needsIndent && c != '\n' && c != '\r')
 		{
 			// If the first character on a line is an LParen,
 			// we would end up putting an extra indent level
@@ -248,6 +450,12 @@ struct Formatter
 			needsIndent = true;
 		char[1] b = [c];
 		outputFile.rawWrite(b[]);
+	}
+
+	void put(string str)
+	{
+		foreach (char c; str)
+			put(c);
 	}
 
 	void putIndent()
