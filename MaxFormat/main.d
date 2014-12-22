@@ -1,6 +1,7 @@
 ﻿module main;
 
 import std.algorithm;
+import std.ascii : isDigit;
 import std.file;
 import std.getopt;
 import std.regex;
@@ -34,14 +35,21 @@ void main(string[] args)
 	if (enableRegexTransforms)
 	{
 		__gshared regexTransforms = [
+			// Style Regexes (These transform some code into a more uniform style)
+			tuple(regex(`^(\s*)if(?:\s+|(\())(.+?)do\s*\(\s*$`, "gm"), `$1if $2$3then (`),
+
+			// Performance Regexes (These transform code into a faster form)
 			tuple(regex(`((?:is|has)Property|(?:get|set)UserProp)\s+([a-zA-Z0-9_.]+?)\s+"([a-zA-Z0-9_]+?)"`, "g"), `$1 $2 #$3`),
 			tuple(regex(`((?:is|has)Property|(?:get|set)UserProp)\s+([a-zA-Z0-9_.]+?)\s+"([a-zA-Z0-9_ -]+?)"`, "g"), `$1 $2 #'$3'`),
-			tuple(regex(`\)\s*else\s*\(\s*\)`, "g"), `)`),
-			tuple(regex(`^(\s*)if(?:\s+|(\())(.+?)do\s*\(\s*$`, "gm"), `$1if $2$3then (`),
 			tuple(regex(`([a-zA-Z0-9_]+)\s*!=\s*undefined\s+AND\s+isDeleted\s+\1\s*==\s*false`, "g"), `isValidNode $1`),
 			tuple(regex(`([a-zA-Z0-9_]+)\s*==\s*undefined\s+OR\s+isDeleted\s+\1\s*==\s*true`, "g"), `NOT isValidNode $1`),
 			tuple(regex(`(\s*)([a-zA-Z0-9_]+)\s*=\s*("[^+]+?")\s*?$\s*format\s+\2 to:([a-zA-Z0-9_]+)`, "gm"), `$1format $3 to:$4`),
 			//tuple(regex(`isProperty ([a-zA-Z0-9_.]+)\s*#wallworm\s+(?:==\s*true)?\s*AND\s+isProperty\s+\1\s+#([a-zA-Z0-9_]+)(?:\s*==\s*true)?(\s+AND\s+\1\.\2\s*[!=]=\s*(?:".+?"|[a-zA-Z0-9_]+))?`, "g"), `isProperty $1 #$2$3 AND isProperty $1 #wallworm`),
+
+			// Removal Regexes (These remove useless pieces of code)
+			tuple(regex(`\)\s*else\s*\(\s*\)`, "g"), `)`),
+			tuple(regex(`/\*\s*\*/`, "g"), ``),
+			tuple(regex(`if(?:\s+|\().+?then\s*\(\s*\)(?!\s*else)`, "gm"), ``),
 		];
 
 		foreach (tup; regexTransforms)
@@ -130,6 +138,7 @@ void main(string[] args)
 		"enablesceneredraw": "enableSceneRedraw",
 		"filein": "fileIn",
 		"finditem": "findItem",
+		"format": "format",
 		"getdef": "getDef",
 		"getdefsource": "getDefSource",
 		"getfacenormal": "getFaceNormal",
@@ -141,6 +150,7 @@ void main(string[] args)
 		"isproperty": "isProperty",
 		"isvalidnode": "isValidNode",
 		"messagebox": "messageBox",
+		"print": "print",
 		"redrawviews": "redrawViews",
 		"setcurrentobject": "setCurrentObject",
 		"superclassof": "superClassOf",
@@ -191,14 +201,21 @@ void main(string[] args)
 				fmt.put(fmt.nextIdentNum());
 				break;
 
+			case ';':
+				goto case '\n';
+
 			case '\t':
 			case ' ':
-				if (!enableConsecutiveSpaceFilter)
-					fmt.put(c);
-				else if (!lastWasWhitespace)
-					fmt.put(' ');
-				lastWasWhitespace = true;
-				continue;
+				if (fmt.peek() != ')')
+				{
+					if (!enableConsecutiveSpaceFilter)
+						fmt.put(c);
+					else if (!lastWasWhitespace)
+						fmt.put(' ');
+					lastWasWhitespace = true;
+					continue;
+				}
+				break;
 				
 			case '\'':
 				fmt.put(c);
@@ -234,6 +251,37 @@ void main(string[] args)
 				}
 				break;
 
+			case '+':
+			case '*':
+			case '<':
+			case '>':
+			case '=':
+			case '!':
+			{
+				if (!lastWasWhitespace)
+					fmt.put(' ');
+				fmt.put(c);
+
+				if (fmt.peek() == '=')
+					fmt.put(fmt.get());
+
+				fmt.trimInlineWhitespace();
+				if (c != '-' || !isDigit(fmt.peek()))
+				{
+					fmt.put(' ');
+					lastWasWhitespace = true;
+					continue;
+				}
+				break;
+			}
+
+			case ',':
+				fmt.put(c);
+				fmt.trimInlineWhitespace();
+				fmt.put(' ');
+				lastWasWhitespace = true;
+				continue;
+
 			case '-':
 				if (fmt.peek() == '-')
 				{
@@ -254,7 +302,7 @@ void main(string[] args)
 					break;
 				}
 				else
-					goto default;
+					goto case '+';
 
 			case '/':
 				if (fmt.peek() == '*')
@@ -393,6 +441,17 @@ struct Formatter
 		if (i == -1)
 			return buf;
 		return buf[0..i];
+	}
+
+	void trimInlineWhitespace()
+	{
+		static bool shouldTrimChar(immutable char c)
+		{
+			if (c == ' ' || c == '\t')
+				return true;
+			return false;
+		}
+		buf = buf.stripLeft!(c => shouldTrimChar(cast(char)c))();
 	}
 
 	bool trimWhitespace()

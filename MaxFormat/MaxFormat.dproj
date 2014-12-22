@@ -19,7 +19,7 @@
     <Externalconsole>true</Externalconsole>
     <Target>Executable</Target>
     <OutputName>MaxFormat</OutputName>
-    <Commandlineparameters>"F:\Autodesk\3ds Max Design 2014\scripts\WallWorm.com\common\mse\wallwormVMF.ms"</Commandlineparameters>
+    <Commandlineparameters>"F:\Autodesk\3ds Max Design 2014\scripts\WallWorm.com\importers\Mario_Kart_SMD_Importer.ms"</Commandlineparameters>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
     <OutputPath>bin\Release</OutputPath>
