@@ -19,7 +19,7 @@
     <Externalconsole>true</Externalconsole>
     <Target>Executable</Target>
     <OutputName>MaxFormat</OutputName>
-    <Commandlineparameters>"F:\Autodesk\3ds Max Design 2014\scripts\WallWorm.com\importers\Mario_Kart_SMD_Importer.ms"</Commandlineparameters>
+    <Commandlineparameters>--space-filter --identifier-casing --regex-transforms "C:\Users\Orvid\AppData\Local\Autodesk\3dsMaxDesign\2014 - 64bit\ENU\scripts\WallWorm.com\entities\tf_entities.ms"</Commandlineparameters>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
     <OutputPath>bin\Release</OutputPath>
@@ -30,6 +30,8 @@
     <Externalconsole>true</Externalconsole>
     <Target>Executable</Target>
     <OutputName>MaxFormat</OutputName>
+    <Commandlineparameters>--space-filter --identifier-casing --regex-transforms "C:\Users\Orvid\AppData\Local\Autodesk\3dsMaxDesign\2014 - 64bit\ENU\scripts\WallWorm.com\entities\tf_entities.ms"</Commandlineparameters>
+    <ExtraCompilerArguments>-inline</ExtraCompilerArguments>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Unittest|AnyCPU' ">
     <DebugSymbols>true</DebugSymbols>

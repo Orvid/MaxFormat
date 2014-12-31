@@ -2,6 +2,7 @@
 
 import std.algorithm;
 import std.ascii : isDigit;
+import std.datetime : msecs, StopWatch;
 import std.file;
 import std.getopt;
 import std.regex;
@@ -10,8 +11,8 @@ import std.string;
 import std.typecons;
 
 __gshared bool enableConsecutiveSpaceFilter = false;
-__gshared bool enableIdentifierCasing = true;
-__gshared bool enableRegexTransforms = true;
+__gshared bool enableIdentifierCasing = false;
+__gshared bool enableRegexTransforms = false;
 
 __gshared string fileToProcess;
 __gshared string outputFile;
@@ -34,6 +35,9 @@ void main(string[] args)
 
 	if (enableRegexTransforms)
 	{
+		StopWatch regexStopwatch = StopWatch();
+		regexStopwatch.start();
+
 		__gshared regexTransforms = [
 			// Style Regexes (These transform some code into a more uniform style)
 			tuple(regex(`^(\s*)if(?:\s+|(\())(.+?)do\s*\(\s*$`, "gm"), `$1if $2$3then (`),
@@ -48,17 +52,23 @@ void main(string[] args)
 
 			// Removal Regexes (These remove useless pieces of code)
 			tuple(regex(`\)\s*else\s*\(\s*\)`, "g"), `)`),
-			tuple(regex(`/\*\s*\*/`, "g"), ``),
 			tuple(regex(`if(?:\s+|\().+?then\s*\(\s*\)(?!\s*else)`, "gm"), ``),
+
+			// Alas, empty block comment removal is dangerous :(
+			//tuple(regex(`/\*\s*\*/`, "gm"), ``),
 		];
 
 		foreach (tup; regexTransforms)
 			txt = txt.replace(tup[0], tup[1]);
+		regexStopwatch.stop();
+
+		writefln("Took %s ms to run %s regex transforms", regexStopwatch.peek().msecs, regexTransforms.length);
 	}
 
 	auto fmt = Formatter(txt, outputFile);
 
 	string[string] explicitIdentifierMap = [
+		// Keywords
 		"and": "AND",
 		"as": "as",
 		"case": "case",
@@ -102,6 +112,7 @@ void main(string[] args)
 		"box2": "Box2",
 		"camera": "Camera",
 		"color": "Color",
+		"directx_9_shader": "DirectX_9_Shader",
 		"double": "Double",
 		"editable_mesh": "Editable_Mesh",
 		"editable_poly": "Editable_Poly",
@@ -114,6 +125,7 @@ void main(string[] args)
 		"integerptr": "IntegerPtr",
 		"light": "Light",
 		"matrix3": "Matrix3",
+		"mesh": "Mesh",
 		"multimaterial": "MultiMaterial",
 		"plane": "Plane",
 		"point2": "Point2",
@@ -130,30 +142,43 @@ void main(string[] args)
 		"turn_to_poly": "Turn_To_Poly",
 
 		// Functions
+		"addbone": "addBone",
 		"addmodifier": "addModifier",
 		"animateall": "animateAll",
 		"classof": "classOf",
 		"convertto": "convertTo",
+		"createfile": "createFile",
 		"disablesceneredraw": "disableSceneRedraw",
+		"dotnetclass": "dotNetClass",
+		"dotnetobject": "dotNetObject",
 		"enablesceneredraw": "enableSceneRedraw",
 		"filein": "fileIn",
 		"finditem": "findItem",
 		"format": "format",
+		"formattedprint": "formattedPrint",
 		"getdef": "getDef",
 		"getdefsource": "getDefSource",
 		"getfacenormal": "getFaceNormal",
 		"getfaceverts": "getFaceVerts",
+		"getinisetting": "getINISetting",
 		"getsafefacecenter": "getSafeFaceCenter",
 		"getvert": "getVert",
 		"getuserprop": "getUserProp",
 		"iskindof": "isKindOf",
 		"isproperty": "isProperty",
 		"isvalidnode": "isValidNode",
+		"matchpattern": "matchPattern",
 		"messagebox": "messageBox",
+		"openfile": "openFile",
 		"print": "print",
 		"redrawviews": "redrawViews",
+		"replacevertexweights": "replaceVertexWeights",
 		"setcurrentobject": "setCurrentObject",
+		"setinisetting": "setINISetting",
+		"setvertexweights": "setVertexWeights",
 		"superclassof": "superClassOf",
+		"trimleft": "trimLeft",
+		"trimright": "trimRight",
 		"uniquename": "uniqueName",
 
 		// Function Containers
@@ -162,6 +187,7 @@ void main(string[] args)
 		// Special Rules
 		"fn": "function",
 		"polyop": "polyop",
+		"skinops": "skinOps",
 	];
 
 	foreach (k, v; explicitIdentifierMap)
@@ -172,6 +198,32 @@ void main(string[] args)
 	}
 
 	bool lastWasWhitespace = false;
+	bool lastWasOperator = false;
+	bool lastWasGrouping = false;
+	bool lastWasDot = false;
+
+	@property void lastWas(string type)()
+	{
+		lastWasWhitespace = false;
+		lastWasOperator = false;
+		lastWasGrouping = false;
+		lastWasDot = false;
+		static if (type == "whitespace")
+			lastWasWhitespace = true;
+		else static if (type == "operator")
+			lastWasOperator = true;
+		else static if (type == "grouping")
+			lastWasGrouping = true;
+		else static if (type == "dot")
+			lastWasDot = true;
+		else
+			static assert(0, "Expected whitespace, operator, grouping, or dot!");
+	}
+
+
+	auto mainStopwatch = StopWatch();
+	mainStopwatch.start();
+
 	while (!fmt.EOF)
 	{
 		auto c = fmt.get();
@@ -186,8 +238,23 @@ void main(string[] args)
 				if (enableIdentifierCasing)
 				{
 					auto ident = c ~ fmt.nextIdentNum();
-					if (auto a = (ident.toLower() in explicitIdentifierMap))
-						fmt.put(*a);
+					if (ident == "bit" && fmt.peek() == '.')
+					{
+						// We have to have a special case for bit.and, bit.or, etc.
+						// otherwise we end up uppercasing them.
+						fmt.put(ident);
+						fmt.put(fmt.get());
+						fmt.put(fmt.nextIdentNum().toLower());
+					}
+					else if (fmt.peek() == ':')
+						fmt.put(ident); // It's a parameter name, ignore it's casing.
+					else if (auto a = (ident.toLower() in explicitIdentifierMap))
+					{
+						if (*a != "Color" || !lastWasDot)
+							fmt.put(*a);
+						else
+							fmt.put(ident);
+					}
 					else
 						fmt.put(ident);
 					break;
@@ -212,7 +279,7 @@ void main(string[] args)
 						fmt.put(c);
 					else if (!lastWasWhitespace)
 						fmt.put(' ');
-					lastWasWhitespace = true;
+					lastWas!"whitespace";
 					continue;
 				}
 				break;
@@ -258,7 +325,7 @@ void main(string[] args)
 			case '=':
 			case '!':
 			{
-				if (!lastWasWhitespace)
+				if (!lastWasWhitespace && !lastWasGrouping)
 					fmt.put(' ');
 				fmt.put(c);
 
@@ -266,20 +333,21 @@ void main(string[] args)
 					fmt.put(fmt.get());
 
 				fmt.trimInlineWhitespace();
-				if (c != '-' || !isDigit(fmt.peek()))
+				if (c != '-' || lastWasOperator)
 				{
-					fmt.put(' ');
-					lastWasWhitespace = true;
+					fmt.wantWhitespaceNext = true;
+					lastWas!"whitespace";
 					continue;
 				}
-				break;
+				lastWas!"operator";
+				continue;
 			}
 
 			case ',':
 				fmt.put(c);
 				fmt.trimInlineWhitespace();
 				fmt.put(' ');
-				lastWasWhitespace = true;
+				lastWas!"whitespace";
 				continue;
 
 			case '-':
@@ -299,7 +367,8 @@ void main(string[] args)
 						else
 							fmt.put(c);
 					}
-					break;
+					lastWas!"whitespace";
+					continue;
 				}
 				else
 					goto case '+';
@@ -367,28 +436,57 @@ void main(string[] args)
 					fmt.put('(');
 					if (fmt.trimWhitespace())
 						fmt.put('\n');
-					break;
+					// Last was actually whitespace....
+					lastWas!"whitespace";
+					continue;
 				}
 				else
-					goto default;
+				{
+					fmt.put(c);
+					lastWas!"grouping";
+					continue;
+				}
 
 			case ')':
 				fmt.currentIndent--;
-				goto default;
+				fmt.put(c);
+				lastWas!"grouping";
+				continue;
 
 			case '\n':
 				if (fmt.trimWhitespace())
 					fmt.put('\n');
 				fmt.put('\n');
-				break;
+				lastWas!"whitespace";
+				continue;
+
+			case '.':
+				fmt.put(c);
+				lastWas!"dot";
+				continue;
+
+			// These characters don't get a space after them if followed by an operator.
+			case ':':
+			case '[':
+			case ']':
+			case '{':
+			case '}':
+				fmt.put(c);
+				lastWas!"grouping";
+				continue;
 
 			default:
 				fmt.put(c);
 				break;
 		}
+		lastWasDot = false;
+		lastWasGrouping = false;
+		lastWasOperator = false;
 		lastWasWhitespace = false;
 	}
+	mainStopwatch.stop();
 
+	writefln("Took %s ms to perform main formatting of file.", mainStopwatch.peek().msecs);
 	fmt.close();
 }
 
@@ -398,6 +496,7 @@ struct Formatter
 	int currentIndent;
 	private string buf;
 	private File outputFile;
+	bool wantWhitespaceNext = false;
 
 	this(string str, string outputFileName)
 	{
@@ -407,6 +506,7 @@ struct Formatter
 
 	void close()
 	{
+		put('\0');
 		outputFile.close();
 	}
 
@@ -507,6 +607,17 @@ struct Formatter
 
 	void put(char c)
 	{
+		if (wantWhitespaceNext)
+		{
+			wantWhitespaceNext = false;
+
+			if (c != '\n' && c != '\r' && c != ' ' && c != '\t')
+			{
+				char[1] b2 = [' '];
+				outputFile.rawWrite(b2[]);
+			}
+		}
+
 		if (needsIndent && c != '\n' && c != '\r')
 		{
 			// If the first character on a line is an LParen,
@@ -523,8 +634,13 @@ struct Formatter
 		}
 		else if (c == '\n')
 			needsIndent = true;
-		char[1] b = [c];
-		outputFile.rawWrite(b[]);
+
+		// A null is output at the very end to ensure any final things required are output already.
+		if (c != '\0')
+		{
+			char[1] b = [c];
+			outputFile.rawWrite(b[]);
+		}
 	}
 
 	void put(string str)
