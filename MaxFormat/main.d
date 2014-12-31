@@ -205,18 +205,22 @@ void main(string[] args)
 	@property void lastWas(string type)()
 	{
 		lastWasWhitespace = false;
-		lastWasOperator = false;
 		lastWasGrouping = false;
 		lastWasDot = false;
+
 		static if (type == "whitespace")
 			lastWasWhitespace = true;
 		else static if (type == "operator")
 			lastWasOperator = true;
-		else static if (type == "grouping")
+		else // Everything else resets operator.
+			lastWasOperator = false;
+
+		static if (type == "grouping")
 			lastWasGrouping = true;
 		else static if (type == "dot")
 			lastWasDot = true;
-		else
+
+		static if (type != "whitespace" && type != "operator" && type != "grouping" && type != "dot")
 			static assert(0, "Expected whitespace, operator, grouping, or dot!");
 	}
 
@@ -278,7 +282,7 @@ void main(string[] args)
 					if (!enableConsecutiveSpaceFilter)
 						fmt.put(c);
 					else if (!lastWasWhitespace)
-						fmt.put(' ');
+						fmt.wantWhitespaceNext = true;
 					lastWas!"whitespace";
 					continue;
 				}
@@ -333,9 +337,10 @@ void main(string[] args)
 					fmt.put(fmt.get());
 
 				fmt.trimInlineWhitespace();
-				if (c != '-' || lastWasOperator)
+				if (c != '-' || !lastWasOperator)
 				{
 					fmt.wantWhitespaceNext = true;
+					lastWas!"operator";
 					lastWas!"whitespace";
 					continue;
 				}
@@ -346,7 +351,7 @@ void main(string[] args)
 			case ',':
 				fmt.put(c);
 				fmt.trimInlineWhitespace();
-				fmt.put(' ');
+				fmt.wantWhitespaceNext = true;
 				lastWas!"whitespace";
 				continue;
 
@@ -427,7 +432,7 @@ void main(string[] args)
 					break;
 				}
 				else
-					goto default;
+					goto case '+';
 
 			case '(':
 				fmt.currentIndent++;
@@ -611,7 +616,7 @@ struct Formatter
 		{
 			wantWhitespaceNext = false;
 
-			if (c != '\n' && c != '\r' && c != ' ' && c != '\t')
+			if (c != '\n' && c != '\r' && c != ' ' && c != '\t' && c != ',')
 			{
 				char[1] b2 = [' '];
 				outputFile.rawWrite(b2[]);

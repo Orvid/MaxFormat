@@ -19,7 +19,7 @@
     <Externalconsole>true</Externalconsole>
     <Target>Executable</Target>
     <OutputName>MaxFormat</OutputName>
-    <Commandlineparameters>--space-filter --identifier-casing --regex-transforms "C:\Users\Orvid\AppData\Local\Autodesk\3dsMaxDesign\2014 - 64bit\ENU\scripts\WallWorm.com\entities\tf_entities.ms"</Commandlineparameters>
+    <Commandlineparameters>--space-filter --identifier-casing --regex-transforms "F:\Autodesk\3ds Max Design 2014\scripts\WallWorm.com\common\mse\wallwormVMF.ms"</Commandlineparameters>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
     <OutputPath>bin\Release</OutputPath>
