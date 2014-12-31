@@ -31,43 +31,42 @@ void main(string[] args)
 	if (!outputFile)
 		outputFile = fileToProcess;
 
-	auto txt = readText(fileToProcess);
+//	foreach (ent; dirEntries(`F:\Autodesk\3ds Max Design 2014\scripts\WallWorm.com`, SpanMode.breadth))
+//	{
+//		if (ent.isFile && ent.name.endsWith(".ms"))
+//		{
+//			formatFile(ent.name, ent.name);
+//		}
+//	}
 
-	if (enableRegexTransforms)
-	{
-		StopWatch regexStopwatch = StopWatch();
-		regexStopwatch.start();
+	formatFile(fileToProcess, outputFile);
+}
 
-		__gshared regexTransforms = [
-			// Style Regexes (These transform some code into a more uniform style)
-			tuple(regex(`^(\s*)if(?:\s+|(\())(.+?)do\s*\(\s*$`, "gm"), `$1if $2$3then (`),
+__gshared regexTransforms = [
+	// Style Regexes (These transform some code into a more uniform style)
+	tuple(regex(`^(\s*)if(?:\s+|(\())(.+?)do\s*\(\s*$`, "gm"), `$1if $2$3then (`),
+	
+	// Performance Regexes (These transform code into a faster form)
+	tuple(regex(`((?:is|has)Property|(?:get|set)UserProp)\s+([a-zA-Z0-9_.]+?)\s+"([a-zA-Z0-9_]+?)"`, "g"), `$1 $2 #$3`),
+	tuple(regex(`((?:is|has)Property|(?:get|set)UserProp)\s+([a-zA-Z0-9_.]+?)\s+"([a-zA-Z0-9_ -]+?)"`, "g"), `$1 $2 #'$3'`),
+	tuple(regex(`([a-zA-Z0-9_]+)\s*!=\s*undefined\s+AND\s+isDeleted\s+\1\s*==\s*false`, "g"), `isValidNode $1`),
+	tuple(regex(`([a-zA-Z0-9_]+)\s*==\s*undefined\s+OR\s+isDeleted\s+\1\s*==\s*true`, "g"), `NOT isValidNode $1`),
+	tuple(regex(`(\s*)([a-zA-Z0-9_]+)\s*=\s*("[^+]+?")\s*?$\s*format\s+\2 to:([a-zA-Z0-9_]+)`, "gm"), `$1format $3 to:$4`),
+	//tuple(regex(`isProperty ([a-zA-Z0-9_.]+)\s*#wallworm\s+(?:==\s*true)?\s*AND\s+isProperty\s+\1\s+#([a-zA-Z0-9_]+)(?:\s*==\s*true)?(\s+AND\s+\1\.\2\s*[!=]=\s*(?:".+?"|[a-zA-Z0-9_]+))?`, "g"), `isProperty $1 #$2$3 AND isProperty $1 #wallworm`),
+	
+	// Removal Regexes (These remove useless pieces of code)
+	tuple(regex(`\)\s*else\s*\(\s*\)`, "g"), `)`),
+	tuple(regex(`if(?:\s+|\().+?then\s*\(\s*\)(?!\s*else)`, "gm"), ``),
+	
+	// Alas, empty block comment removal is dangerous :(
+	//tuple(regex(`/\*\s*\*/`, "gm"), ``),
+];
 
-			// Performance Regexes (These transform code into a faster form)
-			tuple(regex(`((?:is|has)Property|(?:get|set)UserProp)\s+([a-zA-Z0-9_.]+?)\s+"([a-zA-Z0-9_]+?)"`, "g"), `$1 $2 #$3`),
-			tuple(regex(`((?:is|has)Property|(?:get|set)UserProp)\s+([a-zA-Z0-9_.]+?)\s+"([a-zA-Z0-9_ -]+?)"`, "g"), `$1 $2 #'$3'`),
-			tuple(regex(`([a-zA-Z0-9_]+)\s*!=\s*undefined\s+AND\s+isDeleted\s+\1\s*==\s*false`, "g"), `isValidNode $1`),
-			tuple(regex(`([a-zA-Z0-9_]+)\s*==\s*undefined\s+OR\s+isDeleted\s+\1\s*==\s*true`, "g"), `NOT isValidNode $1`),
-			tuple(regex(`(\s*)([a-zA-Z0-9_]+)\s*=\s*("[^+]+?")\s*?$\s*format\s+\2 to:([a-zA-Z0-9_]+)`, "gm"), `$1format $3 to:$4`),
-			//tuple(regex(`isProperty ([a-zA-Z0-9_.]+)\s*#wallworm\s+(?:==\s*true)?\s*AND\s+isProperty\s+\1\s+#([a-zA-Z0-9_]+)(?:\s*==\s*true)?(\s+AND\s+\1\.\2\s*[!=]=\s*(?:".+?"|[a-zA-Z0-9_]+))?`, "g"), `isProperty $1 #$2$3 AND isProperty $1 #wallworm`),
+__gshared immutable string[string] explicitIdentifierMap;
 
-			// Removal Regexes (These remove useless pieces of code)
-			tuple(regex(`\)\s*else\s*\(\s*\)`, "g"), `)`),
-			tuple(regex(`if(?:\s+|\().+?then\s*\(\s*\)(?!\s*else)`, "gm"), ``),
-
-			// Alas, empty block comment removal is dangerous :(
-			//tuple(regex(`/\*\s*\*/`, "gm"), ``),
-		];
-
-		foreach (tup; regexTransforms)
-			txt = txt.replace(tup[0], tup[1]);
-		regexStopwatch.stop();
-
-		writefln("Took %s ms to run %s regex transforms", regexStopwatch.peek().msecs, regexTransforms.length);
-	}
-
-	auto fmt = Formatter(txt, outputFile);
-
-	string[string] explicitIdentifierMap = [
+shared static this()
+{
+	explicitIdentifierMap = [
 		// Keywords
 		"and": "AND",
 		"as": "as",
@@ -77,11 +76,8 @@ void main(string[] args)
 		"coordsys": "coordsys",
 		"default": "default",
 		"do": "do",
-		"dotnetclass": "dotNetClass",
-		"dotnetobject": "dotNetObject",
 		"else": "else",
 		"false": "false",
-		"filein": "fileIn",
 		"for": "for",
 		"function": "function",
 		"global": "global",
@@ -102,7 +98,7 @@ void main(string[] args)
 		"where": "WHERE",
 		"while": "while",
 		"with": "with",
-
+		
 		// Types
 		"angleaxis": "AngleAxis",
 		"array": "Array",
@@ -113,6 +109,8 @@ void main(string[] args)
 		"camera": "Camera",
 		"color": "Color",
 		"directx_9_shader": "DirectX_9_Shader",
+		"dotnetclass": "DotNetClass",
+		"dotnetobject": "DotNetObject",
 		"double": "Double",
 		"editable_mesh": "Editable_Mesh",
 		"editable_poly": "Editable_Poly",
@@ -137,10 +135,10 @@ void main(string[] args)
 		"string": "String",
 		"stringstream": "StringStream",
 		"xrefmaterial": "XRefMaterial",
-
+		
 		// Modifiers
 		"turn_to_poly": "Turn_To_Poly",
-
+		
 		// Functions
 		"addbone": "addBone",
 		"addmodifier": "addModifier",
@@ -180,58 +178,99 @@ void main(string[] args)
 		"trimleft": "trimLeft",
 		"trimright": "trimRight",
 		"uniquename": "uniqueName",
-
+		
 		// Function Containers
 		"custattributes": "custAttributes",
-
+		
 		// Special Rules
 		"fn": "function",
 		"polyop": "polyop",
 		"skinops": "skinOps",
 	];
 
+	bool[string] arr2;
 	foreach (k, v; explicitIdentifierMap)
 	{
 		// fn is a very special case.
 		if (k != v.toLower() && k != "fn")
 			throw new Exception("You misspelled '" ~ k ~ "' as '" ~ v ~ "' in the explicit identifier map!");
-	}
 
+		if (k != k.toLower())
+			throw new Exception("The key '" ~ k ~ "' was not all lowercase!");
+
+		if (k in arr2)
+			throw new Exception("The key '" ~ k ~ "' was already added!");
+
+		arr2[k] = true;
+	}
+}
+
+void formatFile(string fileName, string outputFileName)
+{
+	auto txt = readText(fileName);
+	
+	if (enableRegexTransforms)
+	{
+		StopWatch regexStopwatch = StopWatch();
+		regexStopwatch.start();
+
+		foreach (tup; regexTransforms)
+			txt = txt.replace(tup[0], tup[1]);
+
+		regexStopwatch.stop();
+		writefln("Took %s ms to run %s regex transforms", regexStopwatch.peek().msecs, regexTransforms.length);
+	}
+	
+	auto fmt = Formatter(txt, outputFileName);
+	scope (exit) fmt.close();
+	
 	bool lastWasWhitespace = false;
 	bool lastWasOperator = false;
 	bool lastWasGrouping = false;
 	bool lastWasDot = false;
-
+	
 	@property void lastWas(string type)()
 	{
+		/++
+		 + This may not be clear what is happening at
+		 + first glance, but it does have to be this
+		 + way to handle certain cases.
+		 + 
+		 + Everything will always reset the "whitespace",
+		 + "grouping", and "dot" flags.
+		 + 
+		 + Everything except "whitespace" will reset
+		 + the "operator" flag.
+		 +/
+
 		lastWasWhitespace = false;
 		lastWasGrouping = false;
 		lastWasDot = false;
-
+		
 		static if (type == "whitespace")
 			lastWasWhitespace = true;
 		else static if (type == "operator")
 			lastWasOperator = true;
-		else // Everything else resets operator.
+		else
 			lastWasOperator = false;
-
+		
 		static if (type == "grouping")
 			lastWasGrouping = true;
 		else static if (type == "dot")
 			lastWasDot = true;
-
+		
 		static if (type != "whitespace" && type != "operator" && type != "grouping" && type != "dot")
 			static assert(0, "Expected whitespace, operator, grouping, or dot!");
 	}
-
-
+	
+	
 	auto mainStopwatch = StopWatch();
 	mainStopwatch.start();
-
+	
 	while (!fmt.EOF)
 	{
 		auto c = fmt.get();
-
+		
 		switch(c)
 		{
 			case '_':
@@ -242,6 +281,7 @@ void main(string[] args)
 				if (enableIdentifierCasing)
 				{
 					auto ident = c ~ fmt.nextIdentNum();
+
 					if (ident == "bit" && fmt.peek() == '.')
 					{
 						// We have to have a special case for bit.and, bit.or, etc.
@@ -251,7 +291,10 @@ void main(string[] args)
 						fmt.put(fmt.nextIdentNum().toLower());
 					}
 					else if (fmt.peek() == ':')
-						fmt.put(ident); // It's a parameter name, ignore it's casing.
+					{
+						// It's a parameter name, ignore it's casing.
+						fmt.put(ident);
+					}
 					else if (auto a = (ident.toLower() in explicitIdentifierMap))
 					{
 						if (*a != "Color" || !lastWasDot)
@@ -261,20 +304,21 @@ void main(string[] args)
 					}
 					else
 						fmt.put(ident);
+
 					break;
 				}
 				else
 					goto default;
 			}
-			
+				
 			case '#':
 				fmt.put(c);
 				fmt.put(fmt.nextIdentNum());
 				break;
-
+				
 			case ';':
 				goto case '\n';
-
+				
 			case '\t':
 			case ' ':
 				if (fmt.peek() != ')')
@@ -304,7 +348,7 @@ void main(string[] args)
 					}
 				}
 				break;
-
+				
 			case '"':
 				fmt.put(c);
 				while (!fmt.EOF)
@@ -321,7 +365,7 @@ void main(string[] args)
 					}
 				}
 				break;
-
+				
 			case '+':
 			case '*':
 			case '<':
@@ -332,10 +376,10 @@ void main(string[] args)
 				if (!lastWasWhitespace && !lastWasGrouping)
 					fmt.put(' ');
 				fmt.put(c);
-
+				
 				if (fmt.peek() == '=')
 					fmt.put(fmt.get());
-
+				
 				fmt.trimInlineWhitespace();
 				if (c != '-' || !lastWasOperator)
 				{
@@ -347,14 +391,14 @@ void main(string[] args)
 				lastWas!"operator";
 				continue;
 			}
-
+				
 			case ',':
 				fmt.put(c);
 				fmt.trimInlineWhitespace();
 				fmt.wantWhitespaceNext = true;
 				lastWas!"whitespace";
 				continue;
-
+				
 			case '-':
 				if (fmt.peek() == '-')
 				{
@@ -377,18 +421,18 @@ void main(string[] args)
 				}
 				else
 					goto case '+';
-
+				
 			case '/':
 				if (fmt.peek() == '*')
 				{
 					auto beginIndent = fmt.currentIndent;
 					fmt.put(c);
 					fmt.put(fmt.get());
-
+					
 					while (!fmt.EOF)
 					{
 						c = fmt.get();
-
+						
 						switch (c)
 						{
 							case '\n':
@@ -396,7 +440,7 @@ void main(string[] args)
 									fmt.put('\n');
 								fmt.put('\n');
 								break;
-
+								
 							case '(':
 								fmt.currentIndent++;
 								if (fmt.restOfLine().strip() == "")
@@ -407,11 +451,11 @@ void main(string[] args)
 									break;
 								}
 								goto default;
-
+								
 							case ')':
 								fmt.currentIndent--;
 								goto default;
-
+								
 							case '*':
 								if (fmt.peek() == '/')
 								{
@@ -420,20 +464,20 @@ void main(string[] args)
 									goto EndComment;
 								}
 								goto default;
-
+								
 							default:
 								fmt.put(c);
 								break;
 						}
 					}
-
+					
 				EndComment:
 					fmt.currentIndent = beginIndent;
 					break;
 				}
 				else
 					goto case '+';
-
+				
 			case '(':
 				fmt.currentIndent++;
 				if (fmt.restOfLine().strip() == "")
@@ -451,25 +495,25 @@ void main(string[] args)
 					lastWas!"grouping";
 					continue;
 				}
-
+				
 			case ')':
 				fmt.currentIndent--;
 				fmt.put(c);
 				lastWas!"grouping";
 				continue;
-
+				
 			case '\n':
 				if (fmt.trimWhitespace())
 					fmt.put('\n');
 				fmt.put('\n');
 				lastWas!"whitespace";
 				continue;
-
+				
 			case '.':
 				fmt.put(c);
 				lastWas!"dot";
 				continue;
-
+				
 			// These characters don't get a space after them if followed by an operator.
 			case ':':
 			case '[':
@@ -479,7 +523,7 @@ void main(string[] args)
 				fmt.put(c);
 				lastWas!"grouping";
 				continue;
-
+				
 			default:
 				fmt.put(c);
 				break;
@@ -490,9 +534,8 @@ void main(string[] args)
 		lastWasWhitespace = false;
 	}
 	mainStopwatch.stop();
-
+	
 	writefln("Took %s ms to perform main formatting of file.", mainStopwatch.peek().msecs);
-	fmt.close();
 }
 
 struct Formatter
