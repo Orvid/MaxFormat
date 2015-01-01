@@ -10,11 +10,11 @@ import std.stdio;
 import std.string;
 import std.typecons;
 
-__gshared bool enableConsecutiveSpaceFilter = false;
+__gshared bool enableConsecutiveSpaceFilter = true;
 __gshared bool enableIdentifierCasing = false;
 __gshared bool enableRegexTransforms = false;
 
-__gshared string fileToProcess;
+__gshared string fileToProcess = `F:\Autodesk\3ds Max Design 2014\scripts\WallWorm.com\WallWormSimpleDisplacement\anvil_funcs.ms`;
 __gshared string outputFile;
 
 void main(string[] args)
@@ -26,7 +26,8 @@ void main(string[] args)
 		"regex-transforms", &enableRegexTransforms,
 		"out", &outputFile
 	);
-	fileToProcess = args[1];
+	if (args.length > 1)
+		fileToProcess = args[1];
 
 	if (!outputFile)
 		outputFile = fileToProcess;
@@ -35,7 +36,14 @@ void main(string[] args)
 //	{
 //		if (ent.isFile && ent.name.endsWith(".ms"))
 //		{
+//			writefln("Formatting %s", ent.name);
+//			StopWatch sw = StopWatch();
+//			sw.start();
+//
 //			formatFile(ent.name, ent.name);
+//
+//			sw.stop();
+//			writefln("Done in %s ms", sw.peek().msecs);
 //		}
 //	}
 
@@ -135,6 +143,33 @@ shared static this()
 		"string": "String",
 		"stringstream": "StringStream",
 		"xrefmaterial": "XRefMaterial",
+
+		// Controls
+		"angle": "Angle",
+		"bitmap": "Bitmap",
+		"button": "Button",
+		"checkbox": "CheckBox",
+		"checkbutton": "CheckButton",
+		"colorpicker": "ColorPicker",
+		"combobox": "ComboBox",
+		"curvecontrol": "CurveControl",
+		"dropdownlist": "DropDownList",
+		"dotnetcontrol": "DotNetControl",
+		"edittext": "EditText",
+		"groupbox": "GroupBox",
+		"hyperlink": "Hyperlink",
+		"imgtag": "ImgTag",
+		"label": "Label",
+		"listbox": "ListBox",
+		"mapbutton": "MapButton",
+		"materialbutton": "MaterialButton",
+		"multilistbox": "MultiListBox",
+		"pickbutton": "PickButton",
+		"progressbar": "ProgressBar",
+		"radiobuttons": "RadioButtons",
+		"slider": "Slider",
+		"spinner": "Spinner",
+		"subrollout": "SubRollout",
 		
 		// Modifiers
 		"turn_to_poly": "Turn_To_Poly",
@@ -142,6 +177,7 @@ shared static this()
 		// Functions
 		"addbone": "addBone",
 		"addmodifier": "addModifier",
+		"addnode": "addNode",
 		"animateall": "animateAll",
 		"classof": "classOf",
 		"convertto": "convertTo",
@@ -184,6 +220,7 @@ shared static this()
 		
 		// Special Rules
 		"fn": "function",
+		"layermanager": "LayerManager",
 		"polyop": "polyop",
 		"skinops": "skinOps",
 	];
@@ -218,12 +255,15 @@ void formatFile(string fileName, string outputFileName)
 			txt = txt.replace(tup[0], tup[1]);
 
 		regexStopwatch.stop();
-		writefln("Took %s ms to run %s regex transforms", regexStopwatch.peek().msecs, regexTransforms.length);
+		writefln("\tTook %s ms to run %s regex transforms", regexStopwatch.peek().msecs, regexTransforms.length);
 	}
 	
 	auto fmt = Formatter(txt, outputFileName);
 	scope (exit) fmt.close();
-	
+
+	// Deal with any initial indentation.
+	fmt.trimInlineWhitespace();
+
 	bool lastWasWhitespace = false;
 	bool lastWasOperator = false;
 	bool lastWasGrouping = false;
@@ -236,27 +276,39 @@ void formatFile(string fileName, string outputFileName)
 		 + first glance, but it does have to be this
 		 + way to handle certain cases.
 		 + 
-		 + Everything will always reset the "whitespace",
-		 + "grouping", and "dot" flags.
+		 + Everything will always reset the "whitespace"
+		 + and "dot" flags.
 		 + 
-		 + Everything except "whitespace" will reset
-		 + the "operator" flag.
+		 + "operator" will always reset the "grouping" flag.
+		 + 
+		 + "grouping" will always reset the "operator" flag.
+		 + 
+		 + "whitespace" will never reset the "operator" or
+		 + "grouping" flags.
 		 +/
 
 		lastWasWhitespace = false;
-		lastWasGrouping = false;
 		lastWasDot = false;
 		
 		static if (type == "whitespace")
 			lastWasWhitespace = true;
 		else static if (type == "operator")
+		{
+			lastWasGrouping = false;
 			lastWasOperator = true;
-		else
-			lastWasOperator = false;
-		
-		static if (type == "grouping")
+		}
+		else static if (type == "grouping")
+		{
 			lastWasGrouping = true;
-		else static if (type == "dot")
+			lastWasOperator = false;
+		}
+		else
+		{
+			lastWasGrouping = false;
+			lastWasOperator = false;
+		}
+		
+		static if (type == "dot")
 			lastWasDot = true;
 		
 		static if (type != "whitespace" && type != "operator" && type != "grouping" && type != "dot")
@@ -278,10 +330,10 @@ void formatFile(string fileName, string outputFileName)
 			case 'A': .. case 'Z':
 			case '0': .. case '9':
 			{
+				auto ident = c ~ fmt.nextIdentNum();
+
 				if (enableIdentifierCasing)
 				{
-					auto ident = c ~ fmt.nextIdentNum();
-
 					if (ident == "bit" && fmt.peek() == '.')
 					{
 						// We have to have a special case for bit.and, bit.or, etc.
@@ -304,11 +356,18 @@ void formatFile(string fileName, string outputFileName)
 					}
 					else
 						fmt.put(ident);
-
-					break;
 				}
 				else
-					goto default;
+					fmt.put(ident);
+
+				if (ident == "by")
+				{
+					// By means we are expecting an unary expression.
+					lastWas!"grouping";
+					continue;
+				}
+
+				break;
 			}
 				
 			case '#':
@@ -381,7 +440,7 @@ void formatFile(string fileName, string outputFileName)
 					fmt.put(fmt.get());
 				
 				fmt.trimInlineWhitespace();
-				if (c != '-' || !lastWasOperator)
+				if ((c != '-' || !lastWasOperator) && !lastWasGrouping)
 				{
 					fmt.wantWhitespaceNext = true;
 					lastWas!"operator";
@@ -492,6 +551,7 @@ void formatFile(string fileName, string outputFileName)
 				else
 				{
 					fmt.put(c);
+					fmt.trimInlineWhitespace();
 					lastWas!"grouping";
 					continue;
 				}
@@ -499,8 +559,7 @@ void formatFile(string fileName, string outputFileName)
 			case ')':
 				fmt.currentIndent--;
 				fmt.put(c);
-				lastWas!"grouping";
-				continue;
+				break;
 				
 			case '\n':
 				if (fmt.trimWhitespace())
@@ -517,9 +576,7 @@ void formatFile(string fileName, string outputFileName)
 			// These characters don't get a space after them if followed by an operator.
 			case ':':
 			case '[':
-			case ']':
 			case '{':
-			case '}':
 				fmt.put(c);
 				lastWas!"grouping";
 				continue;
@@ -535,7 +592,7 @@ void formatFile(string fileName, string outputFileName)
 	}
 	mainStopwatch.stop();
 	
-	writefln("Took %s ms to perform main formatting of file.", mainStopwatch.peek().msecs);
+	writefln("\tTook %s ms to perform main formatting of file.", mainStopwatch.peek().msecs);
 }
 
 struct Formatter
