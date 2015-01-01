@@ -375,9 +375,6 @@ void formatFile(string fileName, string outputFileName)
 				fmt.put(fmt.nextIdentNum());
 				break;
 				
-			case ';':
-				goto case '\n';
-				
 			case '\t':
 			case ' ':
 				if (fmt.peek() != ')')
@@ -440,7 +437,15 @@ void formatFile(string fileName, string outputFileName)
 					fmt.put(fmt.get());
 				
 				fmt.trimInlineWhitespace();
-				if ((c != '-' || !lastWasOperator) && !lastWasGrouping)
+				if (
+					!lastWasGrouping &&
+					(
+						(
+							c == '-' && (!isDigit(fmt.peek()) || lastWasOperator)
+						) || 
+						(c != '*' && c != '-')
+					)
+				)
 				{
 					fmt.wantWhitespaceNext = true;
 					lastWas!"operator";
@@ -560,9 +565,10 @@ void formatFile(string fileName, string outputFileName)
 				fmt.currentIndent--;
 				fmt.put(c);
 				break;
-				
+
+			case ';':
 			case '\n':
-				if (fmt.trimWhitespace())
+				if (fmt.trimWhitespace(c == ';' ? -1 : 0))
 					fmt.put('\n');
 				fmt.put('\n');
 				lastWas!"whitespace";
@@ -659,9 +665,9 @@ struct Formatter
 		buf = buf.stripLeft!(c => shouldTrimChar(cast(char)c))();
 	}
 
-	bool trimWhitespace()
+	bool trimWhitespace(int initialNewLineCount = 0)
 	{
-		int newLineCount = 0;
+		int newLineCount = initialNewLineCount;
 		bool inRN = false;
 		bool shouldTrimChar(immutable char c)
 		{
@@ -693,7 +699,7 @@ struct Formatter
 			return false;
 		}
 		buf = buf.stripLeft!(c => shouldTrimChar(cast(char)c))();
-		return newLineCount != 0;
+		return newLineCount > 0;
 	}
 
 	char get()
