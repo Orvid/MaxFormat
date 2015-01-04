@@ -1,20 +1,22 @@
 ﻿module main;
 
 import std.algorithm;
+import std.array : Appender;
 import std.ascii : isDigit;
+import std.conv : to;
 import std.datetime : msecs, StopWatch;
-import std.file;
+import std.file : readText, write;
 import std.getopt;
 import std.regex;
-import std.stdio;
+import std.stdio : writefln;
 import std.string;
 import std.typecons;
 
 __gshared bool enableConsecutiveSpaceFilter = true;
-__gshared bool enableIdentifierCasing = false;
-__gshared bool enableRegexTransforms = false;
+__gshared bool enableIdentifierCasing = true;
+__gshared bool enableRegexTransforms = true;
 
-__gshared string fileToProcess = `F:\Autodesk\3ds Max Design 2014\scripts\WallWorm.com\WallWormSimpleDisplacement\anvil_funcs.ms`;
+__gshared string fileToProcess = `F:\Autodesk\3ds Max Design 2014\scripts\WallWorm.com\plugins\corvex.ms`;
 __gshared string outputFile;
 
 void main(string[] args)
@@ -48,6 +50,8 @@ void main(string[] args)
 //	}
 
 	formatFile(fileToProcess, outputFile);
+
+	writefln("Total of %s lines", Formatter.totalLines);
 }
 
 __gshared regexTransforms = [
@@ -71,9 +75,16 @@ __gshared regexTransforms = [
 ];
 
 __gshared immutable string[string] explicitIdentifierMap;
+__gshared immutable bool[string] groupingIdentifierMap;
 
 shared static this()
 {
+	groupingIdentifierMap = [
+		"by": true,
+		"else": true,
+		"then": true,
+	];
+
 	explicitIdentifierMap = [
 		// Keywords
 		"and": "AND",
@@ -115,10 +126,12 @@ shared static this()
 		"bitarray": "BitArray",
 		"box2": "Box2",
 		"camera": "Camera",
+		"checker": "Checker",
 		"color": "Color",
 		"directx_9_shader": "DirectX_9_Shader",
 		"dotnetclass": "DotNetClass",
 		"dotnetobject": "DotNetObject",
+		"donut": "Donut",
 		"double": "Double",
 		"editable_mesh": "Editable_Mesh",
 		"editable_poly": "Editable_Poly",
@@ -130,6 +143,7 @@ shared static this()
 		"integer64": "Integer64",
 		"integerptr": "IntegerPtr",
 		"light": "Light",
+		"line": "Line",
 		"matrix3": "Matrix3",
 		"mesh": "Mesh",
 		"multimaterial": "MultiMaterial",
@@ -139,7 +153,10 @@ shared static this()
 		"point4": "Point4",
 		"quat": "Quat",
 		"ray": "Ray",
+		"rectangle": "Rectangle",
 		"shape": "Shape",
+		"splineshape": "SplineShape",
+		"star": "Star",
 		"string": "String",
 		"stringstream": "StringStream",
 		"xrefmaterial": "XRefMaterial",
@@ -156,6 +173,7 @@ shared static this()
 		"dropdownlist": "DropDownList",
 		"dotnetcontrol": "DotNetControl",
 		"edittext": "EditText",
+		"group": "Group",
 		"groupbox": "GroupBox",
 		"hyperlink": "Hyperlink",
 		"imgtag": "ImgTag",
@@ -187,6 +205,7 @@ shared static this()
 		"dotnetobject": "dotNetObject",
 		"enablesceneredraw": "enableSceneRedraw",
 		"filein": "fileIn",
+		"filterstring": "filterString",
 		"finditem": "findItem",
 		"format": "format",
 		"formattedprint": "formattedPrint",
@@ -203,8 +222,10 @@ shared static this()
 		"isvalidnode": "isValidNode",
 		"matchpattern": "matchPattern",
 		"messagebox": "messageBox",
+		"numsplines": "numSplines",
 		"openfile": "openFile",
 		"print": "print",
+		"querybox": "queryBox",
 		"redrawviews": "redrawViews",
 		"replacevertexweights": "replaceVertexWeights",
 		"setcurrentobject": "setCurrentObject",
@@ -223,6 +244,7 @@ shared static this()
 		"layermanager": "LayerManager",
 		"polyop": "polyop",
 		"skinops": "skinOps",
+		"subobjectlevel": "subObjectLevel",
 	];
 
 	bool[string] arr2;
@@ -245,24 +267,45 @@ shared static this()
 void formatFile(string fileName, string outputFileName)
 {
 	auto txt = readText(fileName);
-	
+
+	__gshared ignoreRegionRegex = regex(`--BEGIN IGNORE FORMAT(.|\s)*?--END IGNORE FORMAT`, "g");
+	__gshared ignoreRegexOutputMatch = regex(`/\*#!@#IGNORED REGION ([0-9]+) REPLACEMENT HERE\*/`, "g");
+
+	size_t currentIgnoreFormatID = 0;
+	string[] ignoreFormatRegions;
+	txt = txt.replaceAll!((match) {
+		ignoreFormatRegions ~= match[0];
+		return `/*#!@#IGNORED REGION ` ~ (currentIgnoreFormatID++).to!string() ~ ` REPLACEMENT HERE*/`;
+	})(ignoreRegionRegex);
+
 	if (enableRegexTransforms)
 	{
 		StopWatch regexStopwatch = StopWatch();
 		regexStopwatch.start();
 
 		foreach (tup; regexTransforms)
-			txt = txt.replace(tup[0], tup[1]);
+			txt = txt.replaceAll(tup[0], tup[1]);
 
 		regexStopwatch.stop();
 		writefln("\tTook %s ms to run %s regex transforms", regexStopwatch.peek().msecs, regexTransforms.length);
 	}
 	
-	auto fmt = Formatter(txt, outputFileName);
-	scope (exit) fmt.close();
+	auto fmt = Formatter(txt);
 
 	// Deal with any initial indentation.
 	fmt.trimInlineWhitespace();
+
+	bool currentLineUnaryBinary = false;
+	bool currentLineBinaryUnary = false;
+	bool nextLineUnaryBinary = false;
+	bool nextLineBinaryUnary = false;
+	fmt.onEndOfLine = () {
+		currentLineUnaryBinary = nextLineUnaryBinary;
+		nextLineUnaryBinary = false;
+
+		currentLineBinaryUnary = nextLineBinaryUnary;
+		nextLineBinaryUnary = false;
+	};
 
 	bool lastWasWhitespace = false;
 	bool lastWasOperator = false;
@@ -360,7 +403,8 @@ void formatFile(string fileName, string outputFileName)
 				else
 					fmt.put(ident);
 
-				if (ident == "by")
+
+				if (ident in groupingIdentifierMap)
 				{
 					// By means we are expecting an unary expression.
 					lastWas!"grouping";
@@ -377,7 +421,7 @@ void formatFile(string fileName, string outputFileName)
 				
 			case '\t':
 			case ' ':
-				if (fmt.peek() != ')')
+				if (fmt.peek() != ')' && fmt.peek() != ']')
 				{
 					if (!enableConsecutiveSpaceFilter)
 						fmt.put(c);
@@ -437,15 +481,20 @@ void formatFile(string fileName, string outputFileName)
 					fmt.put(fmt.get());
 				
 				fmt.trimInlineWhitespace();
-				if (
-					!lastWasGrouping &&
-					(
-						(
-							c == '-' && (!isDigit(fmt.peek()) || lastWasOperator)
-						) || 
-						(c != '*' && c != '-')
-					)
-				)
+				bool doWhitespace = !lastWasGrouping;
+				if (c == '-')
+				{
+					if (lastWasGrouping)
+						doWhitespace = currentLineBinaryUnary;
+					else if (!isDigit(fmt.peek()))
+						doWhitespace = !currentLineUnaryBinary;
+					else if (lastWasOperator)
+						doWhitespace = currentLineBinaryUnary;
+					else
+						doWhitespace = !currentLineUnaryBinary;
+				}
+
+				if (doWhitespace)
 				{
 					fmt.wantWhitespaceNext = true;
 					lastWas!"operator";
@@ -460,6 +509,7 @@ void formatFile(string fileName, string outputFileName)
 				fmt.put(c);
 				fmt.trimInlineWhitespace();
 				fmt.wantWhitespaceNext = true;
+				lastWas!"grouping";
 				lastWas!"whitespace";
 				continue;
 				
@@ -467,6 +517,18 @@ void formatFile(string fileName, string outputFileName)
 				if (fmt.peek() == '-')
 				{
 					fmt.put(c);
+					switch (fmt.restOfLine().strip())
+					{
+						case "-BINARY":
+							nextLineBinaryUnary = true;
+							break;
+						case "-UNARY":
+							nextLineUnaryBinary = true;
+							break;
+						default:
+							break;
+					}
+
 					while (!fmt.EOF)
 					{
 						c = fmt.get();
@@ -596,6 +658,15 @@ void formatFile(string fileName, string outputFileName)
 		lastWasOperator = false;
 		lastWasWhitespace = false;
 	}
+	fmt.close();
+
+	txt = fmt.getBuffer();
+	txt = txt.replaceAll!((match) {
+		return ignoreFormatRegions[match[1].to!size_t()];
+	})(ignoreRegexOutputMatch);
+
+	write(outputFileName, txt);
+
 	mainStopwatch.stop();
 	
 	writefln("\tTook %s ms to perform main formatting of file.", mainStopwatch.peek().msecs);
@@ -606,19 +677,25 @@ struct Formatter
 	bool needsIndent = true;
 	int currentIndent;
 	private string buf;
-	private File outputFile;
+	private Appender!string outputBuffer;
 	bool wantWhitespaceNext = false;
+	public void delegate() onEndOfLine;
 
-	this(string str, string outputFileName)
+	this(string str)
 	{
 		buf = str;
-		outputFile = File(outputFileName, "wb");
+		outputBuffer = Appender!string();
+		onEndOfLine = () { };
+	}
+
+	string getBuffer()
+	{
+		return outputBuffer.data;
 	}
 
 	void close()
 	{
 		put('\0');
-		outputFile.close();
 	}
 
 	@property bool EOF() { return buf.length == 0; }
@@ -716,6 +793,7 @@ struct Formatter
 		return '\0';
 	}
 
+	__gshared size_t totalLines = 0;
 	void put(char c)
 	{
 		if (wantWhitespaceNext)
@@ -724,8 +802,7 @@ struct Formatter
 
 			if (c != '\n' && c != '\r' && c != ' ' && c != '\t' && c != ',')
 			{
-				char[1] b2 = [' '];
-				outputFile.rawWrite(b2[]);
+				outputBuffer.put(' ');
 			}
 		}
 
@@ -744,13 +821,16 @@ struct Formatter
 				putIndent();
 		}
 		else if (c == '\n')
+		{
+			onEndOfLine();
+			totalLines++;
 			needsIndent = true;
+		}
 
 		// A null is output at the very end to ensure any final things required are output already.
 		if (c != '\0')
 		{
-			char[1] b = [c];
-			outputFile.rawWrite(b[]);
+			outputBuffer.put(c);
 		}
 	}
 
