@@ -16,7 +16,7 @@ __gshared bool enableConsecutiveSpaceFilter = true;
 __gshared bool enableIdentifierCasing = true;
 __gshared bool enableRegexTransforms = true;
 
-__gshared string fileToProcess = `F:\Autodesk\3ds Max Design 2014\scripts\WallWorm.com\plugins\corvex.ms`;
+__gshared string fileToProcess = `F:\Autodesk\3ds Max Design 2014\scripts\WallWorm.com\common\mse\wallwormSMD.ms`;
 __gshared string outputFile;
 
 void main(string[] args)
@@ -82,6 +82,8 @@ shared static this()
 	groupingIdentifierMap = [
 		"by": true,
 		"else": true,
+		"return": true,
+		"rotateZMatrix": true,
 		"then": true,
 	];
 
@@ -389,6 +391,15 @@ void formatFile(string fileName, string outputFileName)
 					{
 						// It's a parameter name, ignore it's casing.
 						fmt.put(ident);
+					}
+					// Because an annoying number of places don't
+					// add a space after the format keyword -_-...
+					else if (ident == "format")
+					{
+						fmt.put(ident);
+						fmt.wantWhitespaceNext = true;
+						lastWas!"whitespace";
+						continue;
 					}
 					else if (auto a = (ident.toLower() in explicitIdentifierMap))
 					{
