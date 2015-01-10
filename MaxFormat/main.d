@@ -203,8 +203,6 @@ shared static this()
 		"convertto": "convertTo",
 		"createfile": "createFile",
 		"disablesceneredraw": "disableSceneRedraw",
-		"dotnetclass": "dotNetClass",
-		"dotnetobject": "dotNetObject",
 		"enablesceneredraw": "enableSceneRedraw",
 		"filein": "fileIn",
 		"filterstring": "filterString",
@@ -462,6 +460,7 @@ void formatFile(string fileName, string outputFileName)
 				
 			case '"':
 				fmt.put(c);
+				fmt.inIgnoreIndent = true;
 				while (!fmt.EOF)
 				{
 					c = fmt.get();
@@ -475,6 +474,7 @@ void formatFile(string fileName, string outputFileName)
 						break;
 					}
 				}
+				fmt.inIgnoreIndent = false;
 				break;
 				
 			case '+':
@@ -690,6 +690,7 @@ struct Formatter
 	private string buf;
 	private Appender!string outputBuffer;
 	bool wantWhitespaceNext = false;
+	bool inIgnoreIndent = false;
 	public void delegate() onEndOfLine;
 
 	this(string str)
@@ -854,7 +855,10 @@ struct Formatter
 	void putIndent()
 	{
 		needsIndent = false;
-		foreach (i; 0..currentIndent)
-			put('\t');
+		if (!inIgnoreIndent)
+		{
+			foreach (i; 0..currentIndent)
+				put('\t');
+		}
 	}
 }
