@@ -5,16 +5,18 @@ import std.array : Appender;
 import std.ascii : isDigit;
 import std.conv : to;
 import std.datetime : msecs, StopWatch;
-import std.file : readText, write;
+import std.file : dirEntries, readText, SpanMode, write;
 import std.getopt;
 import std.regex;
-import std.stdio : writefln;
+import std.stdio : writeln, writefln;
 import std.string;
 import std.typecons;
 
-__gshared bool enableConsecutiveSpaceFilter = true;
-__gshared bool enableIdentifierCasing = true;
-__gshared bool enableRegexTransforms = true;
+__gshared bool enableBinaryUnaryOperatorSpacing = false;
+__gshared bool enableConsecutiveSpaceFilter = false;
+__gshared bool enableIdentifierCasing = false;
+__gshared bool enableOperatorSpacing = false;
+__gshared bool enableRegexTransforms = false;
 
 __gshared string fileToProcess = `F:\Autodesk\3ds Max Design 2014\scripts\WallWorm.com\common\mse\wallwormSMD.ms`;
 __gshared string outputFile;
@@ -34,24 +36,29 @@ void main(string[] args)
 	if (!outputFile)
 		outputFile = fileToProcess;
 
-//	foreach (ent; dirEntries(`F:\Autodesk\3ds Max Design 2014\scripts\WallWorm.com`, SpanMode.breadth))
-//	{
-//		if (ent.isFile && ent.name.endsWith(".ms"))
-//		{
-//			writefln("Formatting %s", ent.name);
-//			StopWatch sw = StopWatch();
-//			sw.start();
-//
-//			formatFile(ent.name, ent.name);
-//
-//			sw.stop();
-//			writefln("Done in %s ms", sw.peek().msecs);
-//		}
-//	}
+	/*
+	foreach (ent; dirEntries(`F:\Autodesk\3ds Max Design 2014\scripts\WallWorm.com`, SpanMode.breadth))
+	{
+		if (ent.isFile && ent.name.endsWith(".ms"))
+		{
+			writefln("Formatting %s", ent.name);
+			StopWatch sw = StopWatch();
+			sw.start();
+
+			formatFile(ent.name, ent.name);
+
+			sw.stop();
+			writefln("Done in %s ms", sw.peek().msecs);
+		}
+	}
+	*/
 
 	formatFile(fileToProcess, outputFile);
 
 	writefln("Total of %s lines", Formatter.totalLines);
+	writefln("Total of %s returns", casedIdentifierUseCount["return"]);
+	writefln("Total of %s functions", casedIdentifierUseCount["function"]);
+	//writeln(casedIdentifierUseCount);
 }
 
 __gshared regexTransforms = [
@@ -80,9 +87,12 @@ __gshared immutable bool[string] groupingIdentifierMap;
 shared static this()
 {
 	groupingIdentifierMap = [
+		"AngleAxis": true,
 		"by": true,
 		"else": true,
 		"return": true,
+		"rotateXMatrix": true,
+		"rotateYMatrix": true,
 		"rotateZMatrix": true,
 		"then": true,
 	];
@@ -91,6 +101,7 @@ shared static this()
 		// Keywords
 		"and": "AND",
 		"as": "as",
+		"by": "by",
 		"case": "case",
 		"catch": "catch",
 		"collect": "collect",
@@ -264,6 +275,8 @@ shared static this()
 	}
 }
 
+__gshared size_t[string] casedIdentifierUseCount;
+
 void formatFile(string fileName, string outputFileName)
 {
 	auto txt = readText(fileName);
@@ -412,6 +425,7 @@ void formatFile(string fileName, string outputFileName)
 				else
 					fmt.put(ident);
 
+				casedIdentifierUseCount[ident.toLower()]++;
 
 				if (ident in groupingIdentifierMap)
 				{
@@ -484,36 +498,53 @@ void formatFile(string fileName, string outputFileName)
 			case '=':
 			case '!':
 			{
-				if (!lastWasWhitespace && !lastWasGrouping)
-					fmt.put(' ');
-				fmt.put(c);
-				
-				if (fmt.peek() == '=')
-					fmt.put(fmt.get());
-				
-				fmt.trimInlineWhitespace();
-				bool doWhitespace = !lastWasGrouping;
-				if (c == '-')
+				if (enableOperatorSpacing)
 				{
-					if (lastWasGrouping)
-						doWhitespace = currentLineBinaryUnary;
-					else if (!isDigit(fmt.peek()))
-						doWhitespace = !currentLineUnaryBinary;
-					else if (lastWasOperator)
-						doWhitespace = currentLineBinaryUnary;
-					else
-						doWhitespace = !currentLineUnaryBinary;
-				}
+					if ((c == '-' || c == '*') && fmt.peek() != '=' && !enableBinaryUnaryOperatorSpacing)
+						goto default;
 
-				if (doWhitespace)
-				{
-					fmt.wantWhitespaceNext = true;
+					bool neededIndent = fmt.needsIndent;
+					if (!lastWasWhitespace && !lastWasGrouping)
+						fmt.put(' ');
+					fmt.put(c);
+
+					bool wasEq = fmt.peek() == '=';
+					if (wasEq)
+						fmt.put(fmt.get());
+					wasEq |= c == '=';
+
+					fmt.trimInlineWhitespace();
+					bool doWhitespace = !lastWasGrouping;
+					if (c == '-')
+					{
+						if (neededIndent)
+							doWhitespace = currentLineBinaryUnary;
+						else if (lastWasGrouping)
+							doWhitespace = currentLineBinaryUnary;
+						else if (!isDigit(fmt.peek()))
+							doWhitespace = !currentLineUnaryBinary;
+						else if (lastWasOperator)
+							doWhitespace = currentLineBinaryUnary;
+						else
+							doWhitespace = !currentLineUnaryBinary;
+					}
+
+					if (doWhitespace)
+					{
+						fmt.wantWhitespaceNext = true;
+						lastWas!"operator";
+						if (wasEq)
+							lastWas!"grouping";
+						lastWas!"whitespace";
+						continue;
+					}
 					lastWas!"operator";
-					lastWas!"whitespace";
+					if (wasEq)
+						lastWas!"grouping";
 					continue;
 				}
-				lastWas!"operator";
-				continue;
+				else
+					goto default;
 			}
 				
 			case ',':
