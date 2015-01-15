@@ -12,53 +12,79 @@ import std.stdio : writeln, writefln;
 import std.string;
 import std.typecons;
 
-__gshared bool enableBinaryUnaryOperatorSpacing = false;
-__gshared bool enableConsecutiveSpaceFilter = false;
-__gshared bool enableIdentifierCasing = false;
-__gshared bool enableOperatorSpacing = false;
-__gshared bool enableRegexTransforms = false;
+__gshared bool enableBinaryUnaryOperatorSpacing = true;
+__gshared bool enableConsecutiveSpaceFilter = true;
+__gshared bool enableIdentifierCasing = true;
+__gshared bool enableOperatorSpacing = true;
+__gshared bool enableRegexTransforms = true;
 
-__gshared string fileToProcess = `F:\Autodesk\3ds Max Design 2014\scripts\WallWorm.com\common\mse\wallwormSMD.ms`;
+__gshared bool enableStats = true;
+__gshared bool enableStats_FullIdentifierUseCount = false;
+__gshared bool enableStats_Functions = true;
+__gshared bool enableStats_Lines = true;
+__gshared bool enableStats_Returns = true;
+
+__gshared string directoryToProcess = `F:\Autodesk\3ds Max Design 2014\scripts\WallWorm.com`;
+__gshared string fileToProcess = `F:\Autodesk\3ds Max Design 2014\scripts\WallWorm.com\install.ms`;
 __gshared string outputFile;
 
 void main(string[] args)
 {
 	getopt(
 		args,
+		"binary-unary-operator-spacing", &enableBinaryUnaryOperatorSpacing,
 		"space-filter", &enableConsecutiveSpaceFilter,
 		"identifier-casing", &enableIdentifierCasing,
+		"operator-spacing", &enableOperatorSpacing,
 		"regex-transforms", &enableRegexTransforms,
+		"directory", &directoryToProcess,
+		"stats", &enableStats,
+		"stats-full", &enableStats_FullIdentifierUseCount,
+		"stats-functions", &enableStats_Functions,
+		"stats-lines", &enableStats_Lines,
+		"stats-returns", &enableStats_Returns,
 		"out", &outputFile
 	);
+
 	if (args.length > 1)
 		fileToProcess = args[1];
 
 	if (!outputFile)
 		outputFile = fileToProcess;
 
-	/*
-	foreach (ent; dirEntries(`F:\Autodesk\3ds Max Design 2014\scripts\WallWorm.com`, SpanMode.breadth))
+	if (directoryToProcess)
 	{
-		if (ent.isFile && ent.name.endsWith(".ms"))
+		foreach (ent; dirEntries(directoryToProcess, SpanMode.breadth))
 		{
-			writefln("Formatting %s", ent.name);
-			StopWatch sw = StopWatch();
-			sw.start();
+			if (ent.isFile && ent.name.endsWith(".ms"))
+			{
+				writefln("Formatting %s", ent.name);
+				StopWatch sw = StopWatch();
+				sw.start();
 
-			formatFile(ent.name, ent.name);
+				formatFile(ent.name, ent.name);
 
-			sw.stop();
-			writefln("Done in %s ms", sw.peek().msecs);
+				sw.stop();
+				writefln("Done in %s ms", sw.peek().msecs);
+			}
 		}
 	}
-	*/
+	else
+	{
+		formatFile(fileToProcess, outputFile);
+	}
 
-	formatFile(fileToProcess, outputFile);
-
-	writefln("Total of %s lines", Formatter.totalLines);
-	writefln("Total of %s returns", casedIdentifierUseCount["return"]);
-	writefln("Total of %s functions", casedIdentifierUseCount["function"]);
-	//writeln(casedIdentifierUseCount);
+	if (enableStats)
+	{
+		if (enableStats_Lines)
+			writefln("Total of %s lines", Formatter.totalLines);
+		if (enableStats_Returns && "return" in casedIdentifierUseCounts)
+			writefln("Total of %s returns", casedIdentifierUseCounts["return"]);
+		if (enableStats_Functions && "function" in casedIdentifierUseCounts)
+			writefln("Total of %s functions", casedIdentifierUseCounts["function"]);
+		if (enableStats_FullIdentifierUseCount)
+			writeln(casedIdentifierUseCounts);
+	}
 }
 
 __gshared regexTransforms = [
@@ -70,7 +96,7 @@ __gshared regexTransforms = [
 	tuple(regex(`((?:is|has)Property|(?:get|set)UserProp)\s+([a-zA-Z0-9_.]+?)\s+"([a-zA-Z0-9_ -]+?)"`, "g"), `$1 $2 #'$3'`),
 	tuple(regex(`([a-zA-Z0-9_]+)\s*!=\s*undefined\s+AND\s+isDeleted\s+\1\s*==\s*false`, "g"), `isValidNode $1`),
 	tuple(regex(`([a-zA-Z0-9_]+)\s*==\s*undefined\s+OR\s+isDeleted\s+\1\s*==\s*true`, "g"), `NOT isValidNode $1`),
-	tuple(regex(`(\s*)([a-zA-Z0-9_]+)\s*=\s*("[^+]+?")\s*?$\s*format\s+\2 to:([a-zA-Z0-9_]+)`, "gm"), `$1format $3 to:$4`),
+	tuple(regex(`(\s*)(?:local\s+)?([a-zA-Z0-9_]+)\s*=\s*("[^+]+?")\s*?$\s*format\s+\2 to:([a-zA-Z0-9_]+)`, "gm"), `$1format $3 to:$4`),
 	//tuple(regex(`isProperty ([a-zA-Z0-9_.]+)\s*#wallworm\s+(?:==\s*true)?\s*AND\s+isProperty\s+\1\s+#([a-zA-Z0-9_]+)(?:\s*==\s*true)?(\s+AND\s+\1\.\2\s*[!=]=\s*(?:".+?"|[a-zA-Z0-9_]+))?`, "g"), `isProperty $1 #$2$3 AND isProperty $1 #wallworm`),
 	
 	// Removal Regexes (These remove useless pieces of code)
@@ -275,7 +301,7 @@ shared static this()
 	}
 }
 
-__gshared size_t[string] casedIdentifierUseCount;
+__gshared size_t[string] casedIdentifierUseCounts;
 
 void formatFile(string fileName, string outputFileName)
 {
@@ -425,7 +451,7 @@ void formatFile(string fileName, string outputFileName)
 				else
 					fmt.put(ident);
 
-				casedIdentifierUseCount[ident.toLower()]++;
+				casedIdentifierUseCounts[ident.toLower()]++;
 
 				if (ident in groupingIdentifierMap)
 				{
