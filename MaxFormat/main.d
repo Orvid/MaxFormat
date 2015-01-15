@@ -553,9 +553,7 @@ void formatFile(string fileName, string outputFileName)
 					bool doWhitespace = !lastWasGrouping;
 					if (c == '-')
 					{
-						if (neededIndent)
-							doWhitespace = currentLineBinaryUnary;
-						else if (lastWasGrouping)
+						if (neededIndent || lastWasGrouping)
 							doWhitespace = currentLineBinaryUnary;
 						else if (!isDigit(fmt.peek()))
 							doWhitespace = !currentLineUnaryBinary;
