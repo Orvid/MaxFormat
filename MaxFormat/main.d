@@ -564,6 +564,13 @@ void formatFile(string fileName, string outputFileName)
 						else
 							doWhitespace = !currentLineUnaryBinary;
 					}
+					else if (c == '*')
+					{
+						if (neededIndent || lastWasGrouping || lastWasOperator)
+							doWhitespace = currentLineBinaryUnary;
+						else
+							doWhitespace = !currentLineUnaryBinary;
+					}
 
 					if (doWhitespace)
 					{
