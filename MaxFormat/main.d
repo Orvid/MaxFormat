@@ -23,9 +23,10 @@ __gshared bool enableStats_FullIdentifierUseCount = false;
 __gshared bool enableStats_Functions = true;
 __gshared bool enableStats_Lines = true;
 __gshared bool enableStats_Returns = true;
+__gshared bool enableStats_Timing = true;
 
-__gshared string directoryToProcess = `F:\Autodesk\3ds Max Design 2014\scripts\WallWorm.com`;
-__gshared string fileToProcess = `F:\Autodesk\3ds Max Design 2014\scripts\WallWorm.com\install.ms`;
+__gshared string directoryToProcess;// = `F:\Autodesk\3ds Max Design 2014\scripts\WallWorm.com`;
+__gshared string fileToProcess = `F:\Autodesk\3ds Max Design 2014\scripts\WallWorm.com\common\vmt_funcs.ms`;
 __gshared string outputFile;
 
 void main(string[] args)
@@ -43,6 +44,7 @@ void main(string[] args)
 		"stats-functions", &enableStats_Functions,
 		"stats-lines", &enableStats_Lines,
 		"stats-returns", &enableStats_Returns,
+		"stats-timing", &enableStats_Timing,
 		"out", &outputFile
 	);
 
@@ -65,7 +67,8 @@ void main(string[] args)
 				formatFile(ent.name, ent.name);
 
 				sw.stop();
-				writefln("Done in %s ms", sw.peek().msecs);
+				if (enableStats_Timing)
+					writefln("Done in %s ms", sw.peek().msecs);
 			}
 		}
 	}
@@ -326,7 +329,8 @@ void formatFile(string fileName, string outputFileName)
 			txt = txt.replaceAll(tup[0], tup[1]);
 
 		regexStopwatch.stop();
-		writefln("\tTook %s ms to run %s regex transforms", regexStopwatch.peek().msecs, regexTransforms.length);
+		if (enableStats_Timing)
+			writefln("\tTook %s ms to run %s regex transforms", regexStopwatch.peek().msecs, regexTransforms.length);
 	}
 	
 	auto fmt = Formatter(txt);
@@ -407,12 +411,18 @@ void formatFile(string fileName, string outputFileName)
 		
 		switch(c)
 		{
+			case '0': .. case '9':
+			{
+				auto num = c ~ fmt.nextNumber();
+				fmt.put(num);
+				break;
+			}
+
 			case '_':
 			case 'a': .. case 'z':
 			case 'A': .. case 'Z':
-			case '0': .. case '9':
 			{
-				auto ident = c ~ fmt.nextIdentNum();
+				auto ident = c ~ fmt.nextIdentifier();
 
 				if (enableIdentifierCasing)
 				{
@@ -422,7 +432,7 @@ void formatFile(string fileName, string outputFileName)
 						// otherwise we end up uppercasing them.
 						fmt.put(ident);
 						fmt.put(fmt.get());
-						fmt.put(fmt.nextIdentNum().toLower());
+						fmt.put(fmt.nextIdentifier().toLower());
 					}
 					else if (fmt.peek() == ':')
 					{
@@ -465,7 +475,7 @@ void formatFile(string fileName, string outputFileName)
 				
 			case '#':
 				fmt.put(c);
-				fmt.put(fmt.nextIdentNum());
+				fmt.put(fmt.nextIdentifier());
 				break;
 				
 			case '\t':
@@ -736,8 +746,9 @@ void formatFile(string fileName, string outputFileName)
 	write(outputFileName, txt);
 
 	mainStopwatch.stop();
-	
-	writefln("\tTook %s ms to perform main formatting of file.", mainStopwatch.peek().msecs);
+
+	if (enableStats_Timing)
+		writefln("\tTook %s ms to perform main formatting of file.", mainStopwatch.peek().msecs);
 }
 
 struct Formatter
@@ -769,7 +780,36 @@ struct Formatter
 
 	@property bool EOF() { return buf.length == 0; }
 
-	string nextIdentNum()
+	string nextNumber()
+	{
+		int i = 0;
+		while (i < buf.length)
+		{
+			switch (buf[i])
+			{
+				case 'e', 'E':
+					if (i + 2 < buf.length && (buf[i + 1] == '+' || buf[i + 1] == '-') && isDigit(buf[i + 2]))
+					{
+						i += 3;
+						break;
+					}
+					goto default;
+
+				case '.':
+				case '0': .. case '9':
+					i++;
+					break;
+				default:
+					goto Return;
+			}
+		}
+	Return:
+		auto ret = buf[0..i];
+		buf = buf[i..$];
+		return ret;
+	}
+
+	string nextIdentifier()
 	{
 		int i = 0;
 		while (i < buf.length)
