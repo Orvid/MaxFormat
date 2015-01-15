@@ -25,8 +25,8 @@ __gshared bool enableStats_Lines = true;
 __gshared bool enableStats_Returns = true;
 __gshared bool enableStats_Timing = true;
 
-__gshared string directoryToProcess;// = `F:\Autodesk\3ds Max Design 2014\scripts\WallWorm.com`;
-__gshared string fileToProcess = `F:\Autodesk\3ds Max Design 2014\scripts\WallWorm.com\common\vmt_funcs.ms`;
+__gshared string directoryToProcess = `F:\Autodesk\3ds Max Design 2014\scripts\WallWorm.com`;
+__gshared string fileToProcess = `F:\Autodesk\3ds Max Design 2014\scripts\WallWorm.com\common\mse\wallwormVMF.ms`;
 __gshared string outputFile;
 
 void main(string[] args)
@@ -549,26 +549,24 @@ void formatFile(string fileName, string outputFileName)
 						fmt.put(fmt.get());
 					wasEq |= c == '=';
 
-					fmt.trimInlineWhitespace();
 					bool doWhitespace = !lastWasGrouping;
 					if (c == '-')
 					{
-						if (neededIndent || lastWasGrouping)
-							doWhitespace = currentLineBinaryUnary;
-						else if (!isDigit(fmt.peek()))
-							doWhitespace = !currentLineUnaryBinary;
-						else if (lastWasOperator)
+						bool curLineUnary = false;
+
+						if (neededIndent || lastWasGrouping || lastWasOperator || fmt.peek() != ' ')
 							doWhitespace = currentLineBinaryUnary;
 						else
 							doWhitespace = !currentLineUnaryBinary;
 					}
 					else if (c == '*')
 					{
-						if (neededIndent || lastWasGrouping || lastWasOperator)
+						if (neededIndent || lastWasGrouping || lastWasOperator || fmt.peek() != ' ')
 							doWhitespace = currentLineBinaryUnary;
 						else
 							doWhitespace = !currentLineUnaryBinary;
 					}
+					fmt.trimInlineWhitespace();
 
 					if (doWhitespace)
 					{
