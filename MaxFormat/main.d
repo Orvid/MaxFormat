@@ -245,183 +245,17 @@ shared static this()
 		"then": true,
 	];
 
-	explicitIdentifierMap = [
-		// Keywords
-		"and": "AND",
-		"as": "as",
-		"by": "by",
-		"case": "case",
-		"catch": "catch",
-		"collect": "collect",
-		"coordsys": "coordsys",
-		"default": "default",
-		"do": "do",
-		"else": "else",
-		"false": "false",
-		"for": "for",
-		"function": "function",
-		"global": "global",
-		"if": "if",
-		"in": "in",
-		"local": "local",
-		"not": "NOT",
-		"of": "of",
-		"off": "off",
-		"on": "on",
-		"or": "OR",
-		"return": "return",
-		"struct": "struct",
-		"then": "then",
-		"true": "true",
-		"try": "try",
-		"undefined": "undefined",
-		"where": "WHERE",
-		"while": "while",
-		"with": "with",
-		
-		// Types
-		"angleaxis": "AngleAxis",
-		"array": "Array",
-		"bigmatrix": "BigMatrix",
-		"bigmatrixrowarray": "BigMatrixRowArray",
-		"bitarray": "BitArray",
-		"box2": "Box2",
-		"camera": "Camera",
-		"checker": "Checker",
-		"color": "Color",
-		"directx_9_shader": "DirectX_9_Shader",
-		"dotnetclass": "DotNetClass",
-		"dotnetobject": "DotNetObject",
-		"donut": "Donut",
-		"double": "Double",
-		"editable_mesh": "Editable_Mesh",
-		"editable_poly": "Editable_Poly",
-		"eulerangles": "EulerAngles",
-		"float": "Float",
-		"geometryclass": "GeometryClass",
-		"helper": "Helper",
-		"integer": "Integer",
-		"integer64": "Integer64",
-		"integerptr": "IntegerPtr",
-		"light": "Light",
-		"line": "Line",
-		"matrix3": "Matrix3",
-		"mesh": "Mesh",
-		"multimaterial": "MultiMaterial",
-		"number": "Number",
-		"plane": "Plane",
-		"point2": "Point2",
-		"point3": "Point3",
-		"point4": "Point4",
-		"quat": "Quat",
-		"ray": "Ray",
-		"rectangle": "Rectangle",
-		"shape": "Shape",
-		"splineshape": "SplineShape",
-		"star": "Star",
-		"string": "String",
-		"stringstream": "StringStream",
-		"xrefmaterial": "XRefMaterial",
-
-		// Controls
-		"angle": "Angle",
-		"bitmap": "Bitmap",
-		"button": "Button",
-		"checkbox": "CheckBox",
-		"checkbutton": "CheckButton",
-		"colorpicker": "ColorPicker",
-		"combobox": "ComboBox",
-		"curvecontrol": "CurveControl",
-		"dropdownlist": "DropDownList",
-		"dotnetcontrol": "DotNetControl",
-		"edittext": "EditText",
-		"group": "Group",
-		"groupbox": "GroupBox",
-		"hyperlink": "Hyperlink",
-		"imgtag": "ImgTag",
-		"label": "Label",
-		"listbox": "ListBox",
-		"mapbutton": "MapButton",
-		"materialbutton": "MaterialButton",
-		"multilistbox": "MultiListBox",
-		"pickbutton": "PickButton",
-		"progressbar": "ProgressBar",
-		"radiobuttons": "RadioButtons",
-		"slider": "Slider",
-		"spinner": "Spinner",
-		"subrollout": "SubRollout",
-		
-		// Modifiers
-		"turn_to_poly": "Turn_To_Poly",
-		
-		// Functions
-		"addbone": "addBone",
-		"addmodifier": "addModifier",
-		"addnode": "addNode",
-		"animateall": "animateAll",
-		"classof": "classOf",
-		"convertto": "convertTo",
-		"createfile": "createFile",
-		"disablesceneredraw": "disableSceneRedraw",
-		"enablesceneredraw": "enableSceneRedraw",
-		"filein": "fileIn",
-		"filterstring": "filterString",
-		"finditem": "findItem",
-		"format": "format",
-		"formattedprint": "formattedPrint",
-		"getdef": "getDef",
-		"getdefsource": "getDefSource",
-		"getfacenormal": "getFaceNormal",
-		"getfaceverts": "getFaceVerts",
-		"getinisetting": "getINISetting",
-		"getsafefacecenter": "getSafeFaceCenter",
-		"getvert": "getVert",
-		"getuserprop": "getUserProp",
-		"iskindof": "isKindOf",
-		"isproperty": "isProperty",
-		"isvalidnode": "isValidNode",
-		"matchpattern": "matchPattern",
-		"messagebox": "messageBox",
-		"numsplines": "numSplines",
-		"openfile": "openFile",
-		"print": "print",
-		"querybox": "queryBox",
-		"redrawviews": "redrawViews",
-		"replacevertexweights": "replaceVertexWeights",
-		"setcurrentobject": "setCurrentObject",
-		"setinisetting": "setINISetting",
-		"setvertexweights": "setVertexWeights",
-		"superclassof": "superClassOf",
-		"trimleft": "trimLeft",
-		"trimright": "trimRight",
-		"uniquename": "uniqueName",
-		
-		// Function Containers
-		"custattributes": "custAttributes",
-		
-		// Special Rules
+	string[string] explicitIdentifiers = [
+		// fn is special, and is replaced by "function" for style reasons.
 		"fn": "function",
-		"layermanager": "LayerManager",
-		"polyop": "polyop",
-		"skinops": "skinOps",
-		"subobjectlevel": "subObjectLevel",
 	];
-
-	bool[string] arr2;
-	foreach (k, v; explicitIdentifierMap)
+	foreach (str; import("explicitlyCasedIdentifiers.txt").split('\n').map!(i => i.strip()).filter!(l => !l.startsWith("//") && l.length))
 	{
-		// fn is a very special case.
-		if (k != v.toLower() && k != "fn")
-			throw new Exception("You misspelled '" ~ k ~ "' as '" ~ v ~ "' in the explicit identifier map!");
-
-		if (k != k.toLower())
-			throw new Exception("The key '" ~ k ~ "' was not all lowercase!");
-
-		if (k in arr2)
-			throw new Exception("The key '" ~ k ~ "' was already added!");
-
-		arr2[k] = true;
+		if (str in explicitIdentifiers)
+			throw new Exception("The identifier '" ~ str ~ "' was already added!");
+		explicitIdentifiers[str.toLower()] = str;
 	}
+	explicitIdentifierMap = cast(immutable)explicitIdentifiers;
 }
 
 __gshared size_t[string] casedIdentifierUseCounts;
@@ -457,7 +291,7 @@ void formatFile(string fileName, string outputFileName)
 		sw.start();
 
 		txt = txt.replaceAll!((match) {
-			return "::" ~ explicitIdentifierMap[match[1].toLower()];
+			return "::" ~ explicitlyGlobalIdentifierMap[match[1].toLower()];
 		})(explicitlyGlobalRegexes[0]);
 
 		sw.stop();

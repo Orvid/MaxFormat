@@ -50,5 +50,6 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="explicitlyGlobalIdentifiers.txt" />
+    <None Include="explicitlyCasedIdentifiers.txt" />
   </ItemGroup>
 </Project>
