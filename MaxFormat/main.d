@@ -1,7 +1,7 @@
 ﻿module main;
 
 import std.algorithm;
-import std.array : Appender;
+import std.array : Appender, array;
 import std.ascii : isDigit;
 import std.conv : to;
 import std.datetime : msecs, StopWatch;
@@ -14,15 +14,20 @@ import std.typecons;
 
 __gshared bool enableBinaryUnaryOperatorSpacing = true;
 __gshared bool enableConsecutiveSpaceFilter = true;
+__gshared bool enableExplicitlyGlobalTransforms = true;
 __gshared bool enableIdentifierCasing = true;
 __gshared bool enableOperatorSpacing = true;
 __gshared bool enableRegexTransforms = true;
 
 __gshared bool enableStats = true;
+__gshared bool enableStats_ExplicitlyGlobalTransforms = true;
+__gshared bool enableStats_FullGlobalsList = false;
 __gshared bool enableStats_FullIdentifierUseCount = false;
 __gshared bool enableStats_Functions = true;
 __gshared bool enableStats_Lines = true;
 __gshared bool enableStats_Returns = true;
+__gshared bool enableStats_RegexTransforms = true;
+__gshared bool enableStats_RegexTransforms_Detailed = false;
 __gshared bool enableStats_Timing = true;
 
 __gshared string directoryToProcess = `F:\Autodesk\3ds Max Design 2014\scripts\WallWorm.com`;
@@ -38,12 +43,17 @@ void main(string[] args)
 		"identifier-casing", &enableIdentifierCasing,
 		"operator-spacing", &enableOperatorSpacing,
 		"regex-transforms", &enableRegexTransforms,
+		"explicit-globals", &enableExplicitlyGlobalTransforms,
 		"directory", &directoryToProcess,
 		"stats", &enableStats,
+		"stats-explicit-globals", &enableStats_ExplicitlyGlobalTransforms,
 		"stats-full", &enableStats_FullIdentifierUseCount,
 		"stats-functions", &enableStats_Functions,
+		"stats-globals-list", &enableStats_FullGlobalsList,
 		"stats-lines", &enableStats_Lines,
 		"stats-returns", &enableStats_Returns,
+		"stats-regex-transforms", &enableStats_RegexTransforms,
+		"stats-regex-transforms-detailed", &enableStats_RegexTransforms_Detailed,
 		"stats-timing", &enableStats_Timing,
 		"out", &outputFile
 	);
@@ -87,34 +97,143 @@ void main(string[] args)
 			writefln("Total of %s functions", casedIdentifierUseCounts["function"]);
 		if (enableStats_FullIdentifierUseCount)
 			writeln(casedIdentifierUseCounts);
+
+		if (enableStats_RegexTransforms)
+			writefln("Took a total of %s ms to run %s regexes", regexTimingMap.byValue.sum(), regexTransforms.length);
+
+		if (enableStats_RegexTransforms_Detailed)
+		{
+			foreach (k, v; regexTimingMap)
+				writefln("Regex %s took %s ms", k, v);
+		}
+
+		if (enableStats_ExplicitlyGlobalTransforms)
+		{
+			writefln("Took %s ms to force %s explicit globals", explicitlyGlobalIdentifierSearchMapTime, explicitlyGlobalIdentifiers.length);
+			writefln("Took %s ms to remove references to those explicit globals", explicitlyGlobalIdentifierGlobalRemovalTime);
+		}
+
+		if (enableStats_FullGlobalsList)
+		{
+			writefln("Total of %s globals", globalDeclarationMap.length);
+			writeln(globalDeclarationMap);
+		}
 	}
+}
+
+template cRegex(string pattern, string flags)
+{
+	debug
+		enum cRegex = regex(pattern, flags);
+	else
+		alias cRegex = ctRegex!(pattern, flags);
 }
 
 __gshared regexTransforms = [
 	// Style Regexes (These transform some code into a more uniform style)
-	tuple(regex(`^(\s*)if(?:\s+|(\())(.+?)do\s*\(\s*$`, "gm"), `$1if $2$3then (`),
+	tuple(cRegex!(`^(\s*)if(?:\s+|(\())(.+?)do\s*\(\s*$`, "gm"), `$1if $2$3then (`),
+	tuple(cRegex!(`((?:is|has)Property)\s+([a-zA-Z0-9_.]+)\s*#([a-zA-Z0-9_]+)\s+==\s*true`, "g"), `$1 $2 #$3`),
 	
 	// Performance Regexes (These transform code into a faster form)
-	tuple(regex(`((?:is|has)Property|(?:get|set)UserProp)\s+([a-zA-Z0-9_.]+?)\s+"([a-zA-Z0-9_]+?)"`, "g"), `$1 $2 #$3`),
-	tuple(regex(`((?:is|has)Property|(?:get|set)UserProp)\s+([a-zA-Z0-9_.]+?)\s+"([a-zA-Z0-9_ -]+?)"`, "g"), `$1 $2 #'$3'`),
-	tuple(regex(`([a-zA-Z0-9_]+)\s*!=\s*undefined\s+AND\s+isDeleted\s+\1\s*==\s*false`, "g"), `isValidNode $1`),
-	tuple(regex(`([a-zA-Z0-9_]+)\s*==\s*undefined\s+OR\s+isDeleted\s+\1\s*==\s*true`, "g"), `NOT isValidNode $1`),
-	tuple(regex(`(\s*)(?:local\s+)?([a-zA-Z0-9_]+)\s*=\s*("[^+]+?")\s*?$\s*format\s+\2 to:([a-zA-Z0-9_]+)`, "gm"), `$1format $3 to:$4`),
-	//tuple(regex(`isProperty ([a-zA-Z0-9_.]+)\s*#wallworm\s+(?:==\s*true)?\s*AND\s+isProperty\s+\1\s+#([a-zA-Z0-9_]+)(?:\s*==\s*true)?(\s+AND\s+\1\.\2\s*[!=]=\s*(?:".+?"|[a-zA-Z0-9_]+))?`, "g"), `isProperty $1 #$2$3 AND isProperty $1 #wallworm`),
+	tuple(cRegex!(`((?:is|has)Property|(?:get|set)UserProp)\s+([a-zA-Z0-9_.]+?)\s+"([a-zA-Z0-9_]+?)"`, "g"), `$1 $2 #$3`),
+	tuple(cRegex!(`((?:is|has)Property|(?:get|set)UserProp)\s+([a-zA-Z0-9_.]+?)\s+"([a-zA-Z0-9_ -]+?)"`, "g"), `$1 $2 #'$3'`),
+	tuple(cRegex!(`([a-zA-Z0-9_]+)\s*!=\s*undefined\s+AND\s+isDeleted\s+\1\s*==\s*false`, "g"), `isValidNode $1`),
+	tuple(cRegex!(`([a-zA-Z0-9_]+)\s*==\s*undefined\s+OR\s+isDeleted\s+\1\s*==\s*true`, "g"), `NOT isValidNode $1`),
+	tuple(cRegex!(`^(\s*)(?:local\s+)?([a-zA-Z0-9_]+)\s*=\s*("[^+]+?")\s*?$^\s*format\s+\2 to:([a-zA-Z0-9_]+)$`, "gm"), `$1format $3 to:$4`),
+
+	// WallWorm Specific Performance Regexes (These are performance regexes that are specific to WallWorm,
+	// and while they may be possible to adapt to other projects, are not usefull to other projects in their
+	// current form.)
+	tuple(cRegex!(`isProperty ([a-zA-Z0-9_.]+)\s*#wallworm\s+(?:==\s*true)?\s*AND\s+isProperty\s+\1\s+#([a-zA-Z0-9_]+)(?:\s*==\s*true)?(\s+AND\s+\1\.\2\s*[!=]=\s*(?:".+?"|[a-zA-Z0-9_]+))?`, "g"), `isProperty $1 #$2$3 AND isProperty $1 #wallworm`),
 	
 	// Removal Regexes (These remove useless pieces of code)
-	tuple(regex(`\)\s*else\s*\(\s*\)`, "g"), `)`),
-	tuple(regex(`if(?:\s+|\().+?then\s*\(\s*\)(?!\s*else)`, "gm"), ``),
+	tuple(cRegex!(`\)\s*else\s*\(\s*\)`, "g"), `)`),
+	tuple(cRegex!(`if(?:\s+|\().+?then\s*\(\s*\)(?!\s*else)`, "gm"), ``),
 	
 	// Alas, empty block comment removal is dangerous :(
 	//tuple(regex(`/\*\s*\*/`, "gm"), ``),
 ];
+
+string generateRegexTree(string[] str)
+{
+	static class Node
+	{
+		char leaf;
+		Node[] children;
+
+		this() { this.leaf = '\0'; }
+
+		this(char c)
+		{
+			this.leaf = c;
+		}
+
+		static Node buildNode(string child, Node parent)
+		{
+			if (child == "")
+			{
+				auto n = new Node('\0');
+				parent.children ~= n;
+				return n;
+			}
+			foreach (c; parent.children)
+			{
+				if (c.leaf == child[0])
+					return buildNode(child[1..$], c);
+			}
+			auto n = new Node(child[0]);
+			parent.children ~= n;
+			return buildNode(child[1..$], n);
+		}
+
+		string build()
+		{
+			string ret = "";
+			if (leaf != '\0')
+				ret ~= leaf;
+			bool hasEndNode = children.any!(c => c.leaf == '\0');
+			if (children.length == 1 && hasEndNode)
+				hasEndNode = false;
+			bool addGrouping = children.length > 1 || hasEndNode;
+
+			if (addGrouping)
+				ret ~= "(?:";
+			ret ~= children.filter!(c => c.leaf != '\0').map!(c => c.build()).join('|');
+			if (addGrouping)
+				ret ~= ')';
+			if (hasEndNode)
+				ret ~= "?";
+
+			return ret;
+		}
+	}
+
+	Node root = new Node();
+	foreach (c; str)
+		root.buildNode(c, root);
+	return root.build();
+}
+
+enum explicitlyGlobalIdentifiers = import("explicitlyGlobalIdentifiers.txt").split('\n').map!(i => i.strip()).array;
+enum explicitlyGlobalIdentifiersRegexTree = generateRegexTree(explicitlyGlobalIdentifiers);
+__gshared explicitlyGlobalRegexes = [
+	cRegex!(`(?<!::|global |[a-zA-Z0-9_#".])(` ~ explicitlyGlobalIdentifiersRegexTree ~ `)(?!\.ms|[a-zA-Z0-9_])`, "gi"),
+	cRegex!(`global (?:` ~ explicitlyGlobalIdentifiersRegexTree ~ `)\s*$`, "gim"),
+];
+__gshared immutable string[string] explicitlyGlobalIdentifierMap;
+__gshared size_t explicitlyGlobalIdentifierSearchMapTime;
+__gshared size_t explicitlyGlobalIdentifierGlobalRemovalTime;
 
 __gshared immutable string[string] explicitIdentifierMap;
 __gshared immutable bool[string] groupingIdentifierMap;
 
 shared static this()
 {
+	string[string] explicitGlobals;
+	foreach (str; explicitlyGlobalIdentifiers)
+		explicitGlobals[str.toLower()] = str;
+	explicitlyGlobalIdentifierMap = cast(immutable)explicitGlobals;
+
 	groupingIdentifierMap = [
 		"AngleAxis": true,
 		"by": true,
@@ -189,6 +308,7 @@ shared static this()
 		"matrix3": "Matrix3",
 		"mesh": "Mesh",
 		"multimaterial": "MultiMaterial",
+		"number": "Number",
 		"plane": "Plane",
 		"point2": "Point2",
 		"point3": "Point3",
@@ -305,13 +425,16 @@ shared static this()
 }
 
 __gshared size_t[string] casedIdentifierUseCounts;
+__gshared size_t[size_t] regexTimingMap;
+__gshared size_t[string] globalDeclarationMap;
 
 void formatFile(string fileName, string outputFileName)
 {
 	auto txt = readText(fileName);
 
-	__gshared ignoreRegionRegex = regex(`--BEGIN IGNORE FORMAT(.|\s)*?--END IGNORE FORMAT`, "g");
-	__gshared ignoreRegexOutputMatch = regex(`/\*#!@#IGNORED REGION ([0-9]+) REPLACEMENT HERE\*/`, "g");
+	__gshared ignoreRegionRegex = cRegex!(`--BEGIN IGNORE FORMAT(.|\s)*?--END IGNORE FORMAT`, "g");
+	__gshared ignoreRegexOutputMatch = cRegex!(`/\*#!@#IGNORED REGION ([0-9]+) REPLACEMENT HERE\*/`, "g");
+	__gshared globalDeclarationRegex = cRegex!(`global\s+([a-zA-Z0-9_]+)\s*$`, "gm");
 
 	size_t currentIgnoreFormatID = 0;
 	string[] ignoreFormatRegions;
@@ -319,14 +442,48 @@ void formatFile(string fileName, string outputFileName)
 		ignoreFormatRegions ~= match[0];
 		return `/*#!@#IGNORED REGION ` ~ (currentIgnoreFormatID++).to!string() ~ ` REPLACEMENT HERE*/`;
 	})(ignoreRegionRegex);
+		
+	if (enableStats_FullGlobalsList)
+	{
+		txt = txt.replaceAll!((match) {
+			globalDeclarationMap[match[1].toLower()]++;
+			return match[0];
+		})(globalDeclarationRegex);
+	}
+
+	if (enableExplicitlyGlobalTransforms)
+	{
+		StopWatch sw = StopWatch();
+		sw.start();
+
+		txt = txt.replaceAll!((match) {
+			return "::" ~ explicitIdentifierMap[match[1].toLower()];
+		})(explicitlyGlobalRegexes[0]);
+
+		sw.stop();
+		explicitlyGlobalIdentifierSearchMapTime += sw.peek().msecs;
+		sw.reset();
+
+		sw.start();
+		txt = txt.replaceAll(explicitlyGlobalRegexes[1], "");
+		sw.stop();
+		explicitlyGlobalIdentifierGlobalRemovalTime += sw.peek().msecs;
+	}
 
 	if (enableRegexTransforms)
 	{
 		StopWatch regexStopwatch = StopWatch();
 		regexStopwatch.start();
 
-		foreach (tup; regexTransforms)
+		StopWatch sw2 = StopWatch();
+		foreach (i, tup; regexTransforms)
+		{
+			sw2.start();
 			txt = txt.replaceAll(tup[0], tup[1]);
+			sw2.stop();
+			regexTimingMap[i] += sw2.peek().msecs;
+			sw2.reset();
+		}
 
 		regexStopwatch.stop();
 		if (enableStats_Timing)

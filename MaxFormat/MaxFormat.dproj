@@ -19,6 +19,7 @@
     <Externalconsole>true</Externalconsole>
     <Target>Executable</Target>
     <OutputName>MaxFormat</OutputName>
+    <ExtraCompilerArguments>-J.</ExtraCompilerArguments>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
     <OutputPath>bin\Release</OutputPath>
@@ -30,7 +31,7 @@
     <Target>Executable</Target>
     <OutputName>MaxFormat</OutputName>
     <Commandlineparameters>--space-filter --identifier-casing --regex-transforms "C:\Users\Orvid\AppData\Local\Autodesk\3dsMaxDesign\2014 - 64bit\ENU\scripts\WallWorm.com\entities\tf_entities.ms"</Commandlineparameters>
-    <ExtraCompilerArguments>-inline</ExtraCompilerArguments>
+    <ExtraCompilerArguments>-J. -inline -gc</ExtraCompilerArguments>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Unittest|AnyCPU' ">
     <DebugSymbols>true</DebugSymbols>
@@ -42,8 +43,12 @@
     <Externalconsole>true</Externalconsole>
     <Target>Executable</Target>
     <OutputName>MaxFormat</OutputName>
+    <ExtraCompilerArguments>-J.</ExtraCompilerArguments>
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="main.d" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="explicitlyGlobalIdentifiers.txt" />
   </ItemGroup>
 </Project>
