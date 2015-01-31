@@ -472,7 +472,7 @@ void formatFile(string fileName, string outputFileName)
 				
 			case '\t':
 			case ' ':
-				if (fmt.peek() != ')' && fmt.peek() != ']')
+				if (fmt.peekAfterWhitespace() != ')' && fmt.peekAfterWhitespace() != ']')
 				{
 					if (!enableConsecutiveSpaceFilter)
 						fmt.put(c);
@@ -894,6 +894,16 @@ struct Formatter
 	{
 		if (buf.length)
 			return buf[0];
+		return '\0';
+	}
+
+	char peekAfterWhitespace()
+	{
+		foreach (i; 0..buf.length)
+		{
+			if (buf[i] != ' ' && buf[i] != '\t')
+				return buf[i];
+		}
 		return '\0';
 	}
 
