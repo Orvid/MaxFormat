@@ -235,28 +235,27 @@ shared static this()
 		explicitGlobals[str.toLower()] = str;
 	explicitlyGlobalIdentifierMap = cast(immutable)explicitGlobals;
 
-	groupingIdentifierMap = [
-		"AngleAxis": true,
-		"by": true,
-		"else": true,
-		"return": true,
-		"rotateXMatrix": true,
-		"rotateYMatrix": true,
-		"rotateZMatrix": true,
-		"then": true,
-	];
-
+	bool[string] groupingMap;
 	string[string] explicitIdentifiers = [
 		// fn is special, and is replaced by "function" for style reasons.
 		"fn": "function",
 	];
 	foreach (str; import("explicitlyCasedIdentifiers.txt").split('\n').map!(i => i.strip()).filter!(l => !l.startsWith("//") && l.length))
 	{
+		if (str[0] == '&')
+		{
+			str = str[1..$];
+			// We can let a duplicate slide here, because the
+			// check for explicit identifiers will catch it.
+			groupingMap[str.toLower()] = true;
+		}
+
 		if (str in explicitIdentifiers)
 			throw new Exception("The identifier '" ~ str ~ "' was already added!");
 		explicitIdentifiers[str.toLower()] = str;
 	}
 	explicitIdentifierMap = cast(immutable)explicitIdentifiers;
+	groupingIdentifierMap = cast(immutable)groupingMap;
 }
 
 __gshared size_t[string] casedIdentifierUseCounts;
@@ -455,9 +454,9 @@ void formatFile(string fileName, string outputFileName)
 
 				casedIdentifierUseCounts[ident.toLower()]++;
 
-				if (ident in groupingIdentifierMap)
+				if (ident.toLower() in groupingIdentifierMap)
 				{
-					// By means we are expecting an unary expression.
+					// A grouping identifier means we are expecting an unary expression.
 					lastWas!"grouping";
 					continue;
 				}

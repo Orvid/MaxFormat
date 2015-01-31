@@ -1,14 +1,14 @@
 ﻿// Keywords
 AND
 as
-by
+&by
 case
 catch
 collect
 coordsys
 default
 do
-else
+&else
 false
 for
 function
@@ -21,9 +21,9 @@ of
 off
 on
 OR
-return
+&return
 struct
-then
+&then
 true
 try
 undefined
@@ -32,7 +32,7 @@ while
 with
 
 // Types
-AngleAxis
+&AngleAxis
 Array
 BigMatrix
 BigMatrixRowArray
@@ -140,6 +140,9 @@ print
 queryBox
 redrawViews
 replaceVertexWeights
+&rotateXMatrix
+&rotateYMatrix
+&rotateZMatrix
 setCurrentObject
 setINISetting
 setVertexWeights
