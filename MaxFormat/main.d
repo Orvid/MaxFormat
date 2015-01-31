@@ -132,7 +132,8 @@ template cRegex(string pattern, string flags)
 __gshared regexTransforms = [
 	// Style Regexes (These transform some code into a more uniform style)
 	tuple(cRegex!(`^(\s*)if(?:\s+|(\())(.+?)do\s*\(\s*$`, "gm"), `$1if $2$3then (`),
-	tuple(cRegex!(`((?:is|has)Property)\s+([a-zA-Z0-9_.]+)\s*#([a-zA-Z0-9_]+)\s+==\s*true`, "g"), `$1 $2 #$3`),
+	tuple(cRegex!(`((?:is|has)Property)\s+([a-zA-Z0-9_.]+)\s*#([a-zA-Z0-9_]+)\s*==\s*true`, "g"), `$1 $2 #$3`),
+	tuple(cRegex!(`((?:is|has)Property)\s+([a-zA-Z0-9_.]+)\s*#([a-zA-Z0-9_]+)\s*==\s*false`, "g"), `NOT $1 $2 #$3`),
 	
 	// Performance Regexes (These transform code into a faster form)
 	tuple(cRegex!(`((?:is|has)Property|(?:get|set)UserProp)\s+([a-zA-Z0-9_.]+?)\s+"([a-zA-Z0-9_]+?)"`, "g"), `$1 $2 #$3`),
