@@ -90,7 +90,10 @@ void main(string[] args)
 	if (enableStats)
 	{
 		if (enableStats_Lines)
+		{
 			writefln("Total of %s lines", Formatter.totalLines);
+			writefln("Total of %s lines in comments", Formatter.totalLinesInComments);
+		}
 		if (enableStats_Returns && "return" in casedIdentifierUseCounts)
 			writefln("Total of %s returns", casedIdentifierUseCounts["return"]);
 		if (enableStats_Functions && "function" in casedIdentifierUseCounts)
@@ -588,6 +591,7 @@ void formatFile(string fileName, string outputFileName)
 			case '-':
 				if (fmt.peek() == '-')
 				{
+					fmt.inComment = true;
 					fmt.put(c);
 					switch (fmt.restOfLine().strip())
 					{
@@ -614,6 +618,9 @@ void formatFile(string fileName, string outputFileName)
 						else
 							fmt.put(c);
 					}
+
+					fmt.inComment = false;
+
 					lastWas!"whitespace";
 					continue;
 				}
@@ -623,6 +630,7 @@ void formatFile(string fileName, string outputFileName)
 			case '/':
 				if (fmt.peek() == '*')
 				{
+					fmt.inComment = true;
 					auto beginIndent = fmt.currentIndent;
 					fmt.put(c);
 					fmt.put(fmt.get());
@@ -671,6 +679,7 @@ void formatFile(string fileName, string outputFileName)
 					
 				EndComment:
 					fmt.currentIndent = beginIndent;
+					fmt.inComment = false;
 					break;
 				}
 				else
@@ -747,13 +756,14 @@ void formatFile(string fileName, string outputFileName)
 
 struct Formatter
 {
-	bool needsIndent = true;
-	int currentIndent;
+	private bool needsIndent = true;
+	private int currentIndent;
 	private string buf;
 	private Appender!string outputBuffer;
-	bool wantWhitespaceNext = false;
-	bool inIgnoreIndent = false;
+	public bool wantWhitespaceNext = false;
+	public bool inIgnoreIndent = false;
 	public void delegate() onEndOfLine;
+	public bool inComment = false;
 
 	this(string str)
 	{
@@ -907,6 +917,7 @@ struct Formatter
 	}
 
 	__gshared size_t totalLines = 0;
+	__gshared size_t totalLinesInComments = 0;
 	void put(char c)
 	{
 		if (wantWhitespaceNext)
@@ -937,6 +948,8 @@ struct Formatter
 		{
 			onEndOfLine();
 			totalLines++;
+			if (inComment)
+				totalLinesInComments++;
 			needsIndent = true;
 		}
 
