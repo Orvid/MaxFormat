@@ -145,6 +145,9 @@ __gshared regexTransforms = [
 	tuple(cRegex!(`([a-zA-Z0-9_]+)\s*==\s*undefined\s+OR\s+isDeleted\s+\1\s*==\s*true`, "g"), `NOT isValidNode $1`),
 	tuple(cRegex!(`^(\s*)(?:local\s+)?([a-zA-Z0-9_]+)\s*=\s*("[^+]+?")\s*?$^\s*format\s+\2 to:([a-zA-Z0-9_]+)$`, "gm"), `$1format $3 to:$4`),
 
+	// Correctness Regexes (These help to ensure the correctness of code)
+	tuple(cRegex!(`(?<!\.inode)\.handle`, "g"), `.inode.handle`),
+
 	// WallWorm Specific Performance Regexes (These are performance regexes that are specific to WallWorm,
 	// and while they may be possible to adapt to other projects, are not usefull to other projects in their
 	// current form.)
