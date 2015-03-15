@@ -124,42 +124,16 @@ void main(string[] args)
 	}
 }
 
-template cRegex(string pattern, string flags)
+@property auto cRegex(string pattern, string flags)()
 {
 	debug
-		enum cRegex = regex(pattern, flags);
+		auto re = regex(pattern, flags);
 	else
-		alias cRegex = ctRegex!(pattern, flags);
+		alias re = ctRegex!(pattern, flags);
+	return re;
 }
 
-__gshared regexTransforms = [
-	// Style Regexes (These transform some code into a more uniform style)
-	tuple(cRegex!(`^(\s*)if(?:\s+|(\())(.+?)do\s*\(\s*$`, "gm"), `$1if $2$3then (`),
-	tuple(cRegex!(`((?:is|has)Property)\s+([a-zA-Z0-9_.]+)\s*#([a-zA-Z0-9_]+)\s*==\s*true`, "g"), `$1 $2 #$3`),
-	tuple(cRegex!(`((?:is|has)Property)\s+([a-zA-Z0-9_.]+)\s*#([a-zA-Z0-9_]+)\s*==\s*false`, "g"), `NOT $1 $2 #$3`),
-	
-	// Performance Regexes (These transform code into a faster form)
-	tuple(cRegex!(`((?:is|has)Property|(?:get|set)UserProp)\s+([a-zA-Z0-9_.]+?)\s+"([a-zA-Z0-9_]+?)"`, "g"), `$1 $2 #$3`),
-	tuple(cRegex!(`((?:is|has)Property|(?:get|set)UserProp)\s+([a-zA-Z0-9_.]+?)\s+"([a-zA-Z0-9_ -]+?)"`, "g"), `$1 $2 #'$3'`),
-	tuple(cRegex!(`([a-zA-Z0-9_]+)\s*!=\s*undefined\s+AND\s+isDeleted\s+\1\s*==\s*false`, "g"), `isValidNode $1`),
-	tuple(cRegex!(`([a-zA-Z0-9_]+)\s*==\s*undefined\s+OR\s+isDeleted\s+\1\s*==\s*true`, "g"), `NOT isValidNode $1`),
-	tuple(cRegex!(`^(\s*)(?:local\s+)?([a-zA-Z0-9_]+)\s*=\s*("[^+]+?")\s*?$^\s*format\s+\2 to:([a-zA-Z0-9_]+)$`, "gm"), `$1format $3 to:$4`),
-
-	// Correctness Regexes (These help to ensure the correctness of code)
-	tuple(cRegex!(`(?<!\.inode)\.handle`, "g"), `.inode.handle`),
-
-	// WallWorm Specific Performance Regexes (These are performance regexes that are specific to WallWorm,
-	// and while they may be possible to adapt to other projects, are not usefull to other projects in their
-	// current form.)
-	tuple(cRegex!(`isProperty ([a-zA-Z0-9_.]+)\s*#wallworm\s+(?:==\s*true)?\s*AND\s+isProperty\s+\1\s+#([a-zA-Z0-9_]+)(?:\s*==\s*true)?(\s+AND\s+\1\.\2\s*[!=]=\s*(?:".+?"|[a-zA-Z0-9_]+))?`, "g"), `isProperty $1 #$2$3 AND isProperty $1 #wallworm`),
-	
-	// Removal Regexes (These remove useless pieces of code)
-	tuple(cRegex!(`\)\s*else\s*\(\s*\)`, "g"), `)`),
-	tuple(cRegex!(`if(?:\s+|\().+?then\s*\(\s*\)(?!\s*else)`, "gm"), ``),
-	
-	// Alas, empty block comment removal is dangerous :(
-	//tuple(regex(`/\*\s*\*/`, "gm"), ``),
-];
+__gshared Tuple!(typeof(cRegex!(`""`, "g")), string)[] regexTransforms;
 
 string generateRegexTree(string[] str)
 {
@@ -224,7 +198,7 @@ string generateRegexTree(string[] str)
 enum explicitlyGlobalIdentifiers = import("explicitlyGlobalIdentifiers.txt").split('\n').map!(i => i.strip()).array;
 enum explicitlyGlobalIdentifiersRegexTree = generateRegexTree(explicitlyGlobalIdentifiers);
 __gshared explicitlyGlobalRegexes = [
-	cRegex!(`(?<!::|global |[a-zA-Z0-9_#".])(` ~ explicitlyGlobalIdentifiersRegexTree ~ `)(?!\.ms|[a-zA-Z0-9_])`, "gi"),
+	cRegex!(`(?<!::|global |[a-zA-Z0-9_#"'.])(` ~ explicitlyGlobalIdentifiersRegexTree ~ `)(?!\.ms|[a-zA-Z0-9_])`, "gi"),
 	cRegex!(`global (?:` ~ explicitlyGlobalIdentifiersRegexTree ~ `)\s*$`, "gim"),
 ];
 __gshared immutable string[string] explicitlyGlobalIdentifierMap;
@@ -236,6 +210,39 @@ __gshared immutable bool[string] groupingIdentifierMap;
 
 shared static this()
 {
+	regexTransforms = [
+		// Style Regexes (These transform some code into a more uniform style)
+		tuple(cRegex!(`^(\s*)if(?:\s+|(\())(.+?)do\s*\(\s*$`, "gm"), `$1if $2$3then (`),
+		tuple(cRegex!(`((?:is|has)Property)\s+([a-zA-Z0-9_.]+)\s*#([a-zA-Z0-9_]+)\s*==\s*true`, "g"), `$1 $2 #$3`),
+		tuple(cRegex!(`((?:is|has)Property)\s+([a-zA-Z0-9_.]+)\s*#([a-zA-Z0-9_]+)\s*==\s*false`, "g"), `NOT $1 $2 #$3`),
+		
+		// Performance Regexes (These transform code into a faster form)
+		tuple(cRegex!(`((?:is|has)Property|(?:get|set)UserProp)\s+([a-zA-Z0-9_.]+?)\s+"([a-zA-Z0-9_]+?)"`, "g"), `$1 $2 #$3`),
+		tuple(cRegex!(`((?:is|has)Property|(?:get|set)UserProp)\s+([a-zA-Z0-9_.]+?)\s+"([a-zA-Z0-9_ -]+?)"`, "g"), `$1 $2 #'$3'`),
+		tuple(cRegex!(`([a-zA-Z0-9_]+)\s*!=\s*undefined\s+AND\s+isDeleted\s+\1\s*==\s*false`, "g"), `isValidNode $1`),
+		tuple(cRegex!(`([a-zA-Z0-9_]+)\s*==\s*undefined\s+OR\s+isDeleted\s+\1\s*==\s*true`, "g"), `NOT isValidNode $1`),
+		tuple(cRegex!(`^(\s*)(?:local\s+)?([a-zA-Z0-9_]+)\s*=\s*("[^+]+?")\s*?$^\s*format\s+\2 to:([a-zA-Z0-9_]+)$`, "gm"), `$1format $3 to:$4`),
+		
+		// Correctness Regexes (These help to ensure the correctness of code)
+		tuple(cRegex!(`(?<!\.inode)\.handle`, "g"), `.inode.handle`),
+		
+		// WallWorm Specific Performance Regexes (These are performance regexes that are specific to WallWorm,
+		// and while they may be possible to adapt to other projects, are not usefull to other projects in their
+		// current form.)
+		tuple(cRegex!(`isProperty ([a-zA-Z0-9_.]+)\s*#wallworm\s+(?:==\s*true)?\s*AND\s+isProperty\s+\1\s+#([a-zA-Z0-9_]+)(?:\s*==\s*true)?(\s+AND\s+\1\.\2\s*[!=]=\s*(?:".+?"|[a-zA-Z0-9_]+))?`, "g"), `isProperty $1 #$2$3 AND isProperty $1 #wallworm`),
+		
+		// Removal Regexes (These remove useless pieces of code)
+		tuple(cRegex!(`\)\s*else\s*\(\s*\)`, "g"), `)`),
+		tuple(cRegex!(`if(?:\s+|\().+?then\s*\(\s*\)(?!\s*else)`, "gm"), ``),
+		
+		// Dangerous Regexes (Any run with these enabled should be reviewed CAREFULLY)
+		
+		// Empty block comment removal
+		//tuple(regex(`/\*\s*\*/`, "gm"), ``),
+		// Dissallow single-line if-then statements.
+		//tuple(cRegex!(`^\s*if\s*(.+?)\s*then\s*([^(]+?)$(?!\s*\()`, "gm"), "if $1 then (\n$2\n)"),
+	];
+
 	string[string] explicitGlobals;
 	foreach (str; explicitlyGlobalIdentifiers)
 		explicitGlobals[str.toLower()] = str;
@@ -637,6 +644,8 @@ void formatFile(string fileName, string outputFileName)
 					auto beginIndent = fmt.currentIndent;
 					fmt.put(c);
 					fmt.put(fmt.get());
+
+					bool effectIndent = fmt.peek() != '!';
 					
 					while (!fmt.EOF)
 					{
@@ -651,7 +660,8 @@ void formatFile(string fileName, string outputFileName)
 								break;
 								
 							case '(':
-								fmt.currentIndent++;
+								if (effectIndent)
+									fmt.currentIndent++;
 								if (fmt.restOfLine().strip() == "")
 								{
 									fmt.put('(');
@@ -662,7 +672,8 @@ void formatFile(string fileName, string outputFileName)
 								goto default;
 								
 							case ')':
-								fmt.currentIndent--;
+								if (effectIndent)
+									fmt.currentIndent--;
 								goto default;
 								
 							case '*':
