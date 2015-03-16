@@ -452,6 +452,11 @@ void formatFile(string fileName, string outputFileName)
 						lastWas!"whitespace";
 						continue;
 					}
+					// Don't case group when used as a function.
+					else if (ident == "group" && fmt.peekAfterWhitespace() != '"')
+					{
+						fmt.put(ident);
+					}
 					else if (auto a = (ident.toLower() in explicitIdentifierMap))
 					{
 						if (*a != "Color" || !lastWasDot)
@@ -528,6 +533,9 @@ void formatFile(string fileName, string outputFileName)
 						break;
 					}
 				}
+				// Ensure there is a whitespace after the end of a string in most cases.
+				if (fmt.peek() != ')' && fmt.peek() != ':' && fmt.peek() != ']' && fmt.peek() != '-' && fmt.peek() != '/')
+					fmt.wantWhitespaceNext = true;
 				fmt.inIgnoreIndent = false;
 				break;
 				
@@ -938,7 +946,7 @@ struct Formatter
 		{
 			wantWhitespaceNext = false;
 
-			if (c != '\n' && c != '\r' && c != ' ' && c != '\t' && c != ',')
+			if (c != '\n' && c != '\r' && c != ' ' && c != '\t' && c != ',' && c != '\0')
 			{
 				outputBuffer.put(' ');
 			}
