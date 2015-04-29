@@ -61,10 +61,10 @@ void main(string[] args)
 	if (args.length > 1)
 		fileToProcess = args[1];
 
-	if (!outputFile)
+	if (!outputFile.length)
 		outputFile = fileToProcess;
 
-	if (directoryToProcess)
+	if (directoryToProcess.length)
 	{
 		foreach (ent; dirEntries(directoryToProcess, SpanMode.breadth))
 		{
